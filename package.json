@@ -1,0 +1,58 @@
+{
+  "name": "babystack",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A fresh, local baby of your production backend for every test run and AI-agent session — real MySQL, seeded, disposable, zero test-code plumbing.",
+  "license": "Apache-2.0",
+  "author": "Sharvil Kadam",
+  "homepage": "https://github.com/babystack/babystack#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babystack/babystack.git"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck && pnpm run typecheck:next",
+    "typecheck:next": "node node_modules/typescript-next/bin/tsc -p packages/core/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/docker/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/mysql/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/runtime/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/vitest/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/cli/tsconfig.json --noEmit && node node_modules/typescript-next/bin/tsc -p packages/babystack/tsconfig.json --noEmit",
+    "test": "turbo run test --filter=./packages/*",
+    "test:integration": "turbo run test:integration",
+    "test:examples": "pnpm --filter users-api test",
+    "lint": "eslint . && pnpm run lint:arch",
+    "lint:arch": "depcruise packages --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run build && pnpm run smoke",
+    "smoke": "node scripts/smoke.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "pnpm -r build && pnpm -r publish",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@babystack/core": "workspace:*",
+    "babystack": "workspace:*",
+    "@changesets/cli": "catalog:",
+    "@eslint/js": "catalog:",
+    "@types/node": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "eslint": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "prettier": "catalog:",
+    "tsup": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "typescript-next": "npm:typescript@^7.0.0",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,cjs,mjs,json,md,yml,yaml}": "prettier --write"
+  }
+}

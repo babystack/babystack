@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # npm deps — monthly + grouped (weekly is too noisy per the engineering handbook)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      npm-all:
+        patterns: ['*']
+
+  # GitHub Actions — monthly + grouped
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      actions-all:
+        patterns: ['*']

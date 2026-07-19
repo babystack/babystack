@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# NOTE (hardening follow-up, tracked in docs/99-ROADMAP.md): pin these actions to full commit SHAs.
+# Dependabot (github-actions, monthly) is configured to keep them current once pinned.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run format:check
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run build
+      - run: pnpm run smoke
+
+  # Tier 2 — real-Docker integration tests. Separate job: Linux runners ship Docker, so the
+  # Docker-backed adapter tests run here (the Tier-1 `check` job stays Docker-free and fast).
+  # GitHub sets CI=true, which un-skips the integration suites (see the packages' integration configs).
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      # Per-package real-MySQL suites (each provisions its own mysql:8.4 via Docker)…
+      - run: pnpm --filter @babystack/docker test:integration
+      - run: pnpm --filter @babystack/mysql test:integration
+      - run: pnpm --filter @babystack/vitest test:integration
+      - run: pnpm --filter @babystack/cli test:integration
+      # …and the end-to-end proof: the examples app's real Express+Drizzle+MySQL suite via babystack.
+      - run: pnpm run test:examples

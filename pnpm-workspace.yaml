@@ -1,0 +1,28 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+
+# Single source of truth for shared tooling versions — every package.json references these
+# as "catalog:". Bump here once; pnpm applies it everywhere.
+#
+# TypeScript = DUAL-COMPILER (see ENGINEERING-STANDARDS, "Adopting a new language version…"):
+#   the primary `typescript` is pinned to TS 6.0 — the newest STABLE the type-aware lint stack
+#   supports (typescript-eslint peers `typescript <6.1.0`). The native TS 7 runs as a forward-compat
+#   `--noEmit` gate via the `typescript-next` alias in the root package.json (`typecheck:next`, folded
+#   into `typecheck`). Collapse to TS 7 primary once typescript-eslint supports it — see 99-ROADMAP.
+#   @types/node stays on 22 to match the Node 20/22 target.
+catalog:
+  typescript: ~6.0.3
+  tsup: ^8.5.1
+  vite: ^7.3.6
+  vitest: ^4.1.10
+  '@types/node': ^22.10.5
+  eslint: ^10.7.0
+  '@eslint/js': ^10.0.1
+  typescript-eslint: ^8.64.0
+  prettier: ^3.9.5
+  dependency-cruiser: ^18.1.0
+  turbo: ^2.10.5
+  '@changesets/cli': ^2.31.0
+  husky: ^9.1.7
+  lint-staged: ^17.0.8
