@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>babystack — how you use it</title>
+    <meta
+      name="description"
+      content="How you use babystack: describe your backend once, then every test run gets its own fresh, seeded, disposable real MySQL — zero test-code changes, plus the baby CLI for agents."
+    />
+    <link rel="icon" type="image/png" href="assets/logo-light-160.png" />
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('babystack-theme') || 'light',
+        )
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="bar">
+        <a class="brand" href="./index.html" aria-label="babystack home">
+          <span class="logo-tile" aria-hidden="true"></span>
+          <span class="wordmark">babystack</span>
+        </a>
+        <span class="badge badge-prealpha">pre-alpha</span>
+        <div class="spacer"></div>
+        <nav class="nav-links">
+          <a class="hide-sm" href="./why.html">Why</a>
+          <a class="hide-sm" aria-current="page" href="./usage.html">Usage</a>
+          <a class="hide-sm" href="./docs.html">Docs</a>
+          <a class="hide-sm" href="./roadmap.html">Roadmap</a>
+          <a class="hide-sm" href="./release.html">Release</a>
+          <button
+            class="btn btn-icon"
+            type="button"
+            id="theme-toggle"
+            aria-label="Switch color theme"
+            title="Switch light / dark"
+          >
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+              <g stroke="currentColor">
+                <line x1="12" y1="2.5" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="21.5" />
+                <line x1="2.5" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="21.5" y2="12" />
+                <line x1="5.2" y1="5.2" x2="7" y2="7" />
+                <line x1="17" y1="17" x2="18.8" y2="18.8" />
+                <line x1="18.8" y1="5.2" x2="17" y2="7" />
+                <line x1="7" y1="17" x2="5.2" y2="18.8" />
+              </g>
+            </svg>
+          </button>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary btn-sm"
+            href="https://github.com/babystack/babystack"
+            >GitHub ↗</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ── hero ──────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> how you use it</div>
+          <h1 style="margin-top: 16px">Describe your backend once. Then just run your tests.</h1>
+          <p class="lede" style="max-width: 58ch">
+            You write one config file and never touch DB lifecycle code again. babystack gives every
+            test run its own fresh, seeded, disposable real database — in parallel, thrown away
+            after.
+          </p>
+          <p class="note">The internals live in <a href="./design.html">How it works ↗</a>.</p>
+        </div>
+      </section>
+
+      <!-- ── how you use it (playground) ───────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> how you use it</div>
+          <h2 style="margin-top: 14px">Set it up once. Then just run your tests.</h2>
+          <p class="lede">
+            The whole babystack workflow — four small things you do once, then every
+            <code class="chip chip-beige">pnpm test</code> hands each worker its own fresh, seeded,
+            isolated real database. Pick your setup and play it, or step through yourself.
+          </p>
+          <div id="playground" class="pg">
+            <div class="pg-controls">
+              <div class="field">
+                <label for="pg-fw">Migrations / ORM</label>
+                <select id="pg-fw">
+                  <option value="drizzle">Drizzle</option>
+                  <option value="prisma">Prisma</option>
+                  <option value="knex">Knex</option>
+                  <option value="sql">Raw SQL</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="pg-workers">Test workers</label>
+                <select id="pg-workers">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="4" selected>4</option>
+                  <option value="8">8</option>
+                </select>
+              </div>
+              <button id="pg-run" type="button" class="btn btn-primary btn-lg pg-run">
+                ▶ Play the flow
+              </button>
+            </div>
+            <div class="pg-rail" id="pg-rail"></div>
+            <div class="pg-body">
+              <div class="pg-log" id="pg-code" aria-label="the file or command for this step"></div>
+              <div class="pg-viz">
+                <div class="pg-setup">
+                  <div class="klabel">your setup — done once</div>
+                  <ul>
+                    <li>@babystack/* installed</li>
+                    <li>babystack.config.ts — backend described once</li>
+                    <li>vitest.config.ts — +3 lines</li>
+                    <li>tests unchanged — no babystack import</li>
+                  </ul>
+                </div>
+                <div class="pg-runviz" id="pg-run-viz">
+                  <div class="klabel">every run — just pnpm test</div>
+                  <div class="pg-dbs" id="pg-dbs"></div>
+                  <p class="pg-run-note">
+                    each worker gets its own fresh, isolated real MySQL — green, then gone.
+                  </p>
+                </div>
+                <p class="pg-caption" id="pg-caption"></p>
+              </div>
+            </div>
+            <div class="pg-transport">
+              <button class="pg-nav" id="pg-back" type="button" aria-label="previous step">
+                ‹
+              </button>
+              <input
+                type="range"
+                id="pg-scrub"
+                min="0"
+                max="4"
+                value="0"
+                aria-label="workflow step"
+              />
+              <button class="pg-nav" id="pg-next" type="button" aria-label="next step">›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── a real example ────────────────────────────────────────────────────────── -->
+      <section id="example">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> a real example</div>
+          <h2 style="margin-top: 14px">Real tests. Real MySQL. Zero lifecycle code.</h2>
+          <p class="lede">
+            The walkthrough above isn't hypothetical — it's this app.
+            <code class="chip chip-beige">examples/users-api</code> is a real Express 5 + Drizzle +
+            MySQL API whose whole suite runs against fresh, seeded, isolated real MySQL, with no
+            babystack imports in the tests. Copy it into your repo.
+          </p>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div>
+              <div class="klabel" style="margin-bottom: 10px">tests/constraint.test.ts</div>
+              <pre
+                class="code"
+              ><span class="k">import</span> request <span class="k">from</span> <span class="s">'supertest'</span>
+<span class="k">import</span> { expect, test } <span class="k">from</span> <span class="s">'vitest'</span>
+<span class="k">import</span> { createApp } <span class="k">from</span> <span class="s">'../src/app'</span>
+
+<span class="k">const</span> app = createApp()
+
+<span class="c">// A real engine means the UNIQUE(email) constraint actually fires.</span>
+<span class="c">// A mock would accept the duplicate and hand you false confidence.</span>
+test(<span class="s">'enforces the real UNIQUE(email) constraint'</span>, <span class="k">async</span> () => {
+  <span class="k">await</span> request(app).post(<span class="s">'/users'</span>)
+    .send({ email: <span class="s">'dup@example.com'</span>, name: <span class="s">'First'</span> }).expect(<span class="s">201</span>)
+  <span class="k">await</span> request(app).post(<span class="s">'/users'</span>)
+    .send({ email: <span class="s">'dup@example.com'</span>, name: <span class="s">'Second'</span> }).expect(<span class="s">409</span>)
+})</pre>
+              <p class="note" style="margin-top: 14px">
+                No <code class="chip chip-beige">beforeEach</code>, no truncation, no babystack
+                import — the DB is already fresh and seeded when the test runs.
+              </p>
+            </div>
+            <div>
+              <div class="klabel" style="margin-bottom: 16px">what the suite proves</div>
+              <ul class="checks">
+                <li>
+                  <span class="ok">✓</span>
+                  <span
+                    ><strong>Isolation</strong> — each file's worker sees only the baseline, never
+                    another file's writes</span
+                  >
+                </li>
+                <li>
+                  <span class="ok">✓</span>
+                  <span
+                    ><strong>Committed writes</strong> — a created row is real and visible to the
+                    next request, not a rolled-back transaction</span
+                  >
+                </li>
+                <li>
+                  <span class="ok">✓</span>
+                  <span
+                    ><strong>Real constraints</strong> — a duplicate email is a real
+                    <code class="chip chip-beige">UNIQUE</code> 409, not a mock that says yes</span
+                  >
+                </li>
+                <li>
+                  <span class="ok">✓</span>
+                  <span
+                    ><strong>Seeded baseline</strong> — a fresh worker starts from exactly the seed,
+                    every run</span
+                  >
+                </li>
+              </ul>
+              <div class="cta" style="margin-top: 28px">
+                <a
+                  class="btn btn-primary btn-lg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href="https://github.com/babystack/babystack/tree/main/examples/users-api"
+                  >Browse the example ↗</a
+                >
+              </div>
+              <p class="note" style="margin-top: 16px">
+                Run it: <code class="chip chip-beige">pnpm --filter users-api test</code> (Docker
+                running). More examples — Prisma, TypeORM — are on the
+                <a href="./roadmap.html">roadmap</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 00 the deal ───────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 00 · the deal</div>
+          <h2 style="margin-top: 14px">You own the description. babystack owns the mechanics.</h2>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">you own</div>
+              <h3>Two things, both familiar</h3>
+              <p>
+                <code class="chip chip-soft">babystack.config.ts</code> (one file) + your tests,
+                unchanged — they just read <code class="chip chip-soft">DATABASE_URL</code>, like
+                prod.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">babystack owns</div>
+              <h3>The whole lifecycle</h3>
+              <p>
+                provision · seed · isolate per worker · reset · dispose — a fresh real DB on demand,
+                gone after.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 01 the pipeline ───────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 01 · the pipeline, end to end</div>
+          <h2 style="margin-top: 14px">
+            Set up once. Then it's just <code class="chip chip-soft">pnpm test</code>.
+          </h2>
+          <p class="lede">
+            Locally, in CI, and (deeper) for agents — the same command, the same engine.
+          </p>
+          <div class="grid grid-3">
+            <div class="card">
+              <div class="klabel">① set up · once</div>
+              <p>
+                install → hand-write config (<code class="chip chip-beige">baby init</code> lands in
+                Phase 1) → <code class="chip chip-beige">baby doctor</code>
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">② test</div>
+              <p>
+                <code class="chip chip-beige">pnpm test</code> — a fresh seeded DB per worker,
+                parallel, gone after.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">③ dev</div>
+              <p>
+                <code class="chip chip-beige">baby home</code> — a throwaway seeded DB to poke at by
+                hand.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">④ CI</div>
+              <p>
+                the same <code class="chip chip-beige">pnpm test</code> + one cache step (no
+                re-seed).
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">⑤ agents</div>
+              <p>
+                <code class="chip chip-beige">baby wake</code> + the reset loop — a resettable DB
+                for a coding agent.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 02 one-time setup ─────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 02 · one-time setup (per repo)</div>
+          <h2 style="margin-top: 14px">Three small steps.</h2>
+          <div class="grid" style="grid-template-columns: 1fr; gap: 20px; margin-top: 32px">
+            <div class="card">
+              <div class="step-n">1</div>
+              <h3>Install</h3>
+              <p style="margin-bottom: 14px">One package for the MySQL + Vitest wedge.</p>
+              <pre class="code">pnpm add -D @babystack/vitest</pre>
+            </div>
+            <div class="card">
+              <div class="step-n">2</div>
+              <h3>Configure <span class="badge badge-later">baby init · Phase 1</span></h3>
+              <p style="margin-bottom: 14px">
+                <code class="chip chip-beige">npx baby init</code> will inspect your repo and write
+                these for you. Until then, hand-write two small files:
+              </p>
+              <pre
+                class="code"
+              ><span class="c">// babystack.config.ts — describe your backend ONCE</span>
+export default defineConfig({
+  services: {
+    db: {
+      engine: <span class="s">'mysql'</span>, image: <span class="s">'mysql:8.4'</span>,
+      baseline: { build: [<span class="s">'pnpm db:migrate'</span>, <span class="s">'pnpm db:seed'</span>] },
+    },
+  },
+})</pre>
+              <pre
+                class="code"
+                style="margin-top: 12px"
+              ><span class="c">// vitest.config.ts — the whole integration</span>
+globalSetup: [<span class="s">'@babystack/vitest/global-setup'</span>],
+setupFiles:  [<span class="s">'@babystack/vitest/setup'</span>],
+pool: <span class="s">'forks'</span>,</pre>
+            </div>
+            <div class="card">
+              <div class="step-n">3</div>
+              <h3>Preflight <span class="badge badge-built">built · 0.7</span></h3>
+              <p style="margin-bottom: 14px">
+                <code class="chip chip-beige">baby doctor</code> catches friction before you run —
+                Docker reachable, Node ≥ 22, a valid config, and no import-time
+                <code class="chip chip-soft">DATABASE_URL</code> reads.
+              </p>
+              <pre class="code">
+$ baby doctor
+  ✔ node      v22.10.0 (needs >=22)
+  ✔ docker    engine reachable
+  ✔ config    1 service: db → mysql:8.4
+  ✔ env-read  no import-time DATABASE_URL reads in src/</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 03 everyday ───────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 03 · everyday</div>
+          <h2 style="margin-top: 14px">Mostly: nothing new to learn.</h2>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">
+                ▶ run your tests <span class="badge badge-built">built · 0.4–0.5</span>
+              </div>
+              <p style="margin-bottom: 14px">
+                The whole point. Test files are <strong>untouched</strong> — babystack provisions
+                once, seeds once, and hands each worker its own fresh database.
+              </p>
+              <pre
+                class="code"
+              >pnpm test <span class="c"># fresh · seeded · isolated real MySQL / worker · gone after</span></pre>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                ⎇ local dev DB <span class="badge badge-built">built · 0.7</span>
+              </div>
+              <p style="margin-bottom: 14px">
+                <code class="chip chip-beige">baby home</code> hands you a disposable, seeded DB to
+                click through by hand.
+              </p>
+              <pre
+                class="code"
+              >eval "$(baby home)" <span class="c"># then: mysql "$DATABASE_URL"</span></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 04 CI ─────────────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 04 · CI — the same command</div>
+          <h2 style="margin-top: 14px">No new pipeline.</h2>
+          <p class="lede">
+            The same <code class="chip chip-soft">pnpm test</code>, plus one cache step so the
+            baseline isn't rebuilt each run (no re-seed, no DB access).
+          </p>
+          <pre
+            class="code big"
+          ><span class="c"># .github/workflows/test.yml — Linux runners ship Docker</span>
+- uses: actions/cache@v4
+  with: { path: .babystack/cache, key: babystack-${{ hashFiles('babystack.config.ts','db/**') }} }
+- run: <span class="k">pnpm</span> test <span class="c"># babystack provisions its own MySQL — no services: block</span></pre>
+        </div>
+      </section>
+
+      <!-- ── 05 agents ─────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 05 · coding agents</div>
+          <h2 style="margin-top: 14px">A real backend an agent can break — and undo.</h2>
+          <p class="lede">
+            The same engine, CLI-first (<span class="badge badge-built">built · 0.7</span>): a
+            coding agent gets its own persistent, seeded DB it can reset between attempts — and can
+            never touch your prod. (A deeper MCP integration is Phase 2.5.)
+          </p>
+          <pre
+            class="code big"
+          ><span class="k">baby</span> wake <span class="c"># provision + seed a real MySQL, left running</span>
+<span class="k">eval</span> "$(baby home)" <span class="c"># export DATABASE_URL for this shell</span>
+<span class="c"># … the agent writes / migrates / queries, checks the result …</span>
+<span class="k">baby</span> reset <span class="c"># back to the pristine baseline, same URL — try again</span>
+<span class="k">baby</span> sleep <span class="c"># done: dispose the container</span></pre>
+        </div>
+      </section>
+
+      <!-- ── 06 what it replaces ───────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 06 · what it replaces</div>
+          <h2 style="margin-top: 14px">Delete the plumbing.</h2>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card card-before">
+              <div class="card-head">
+                <span class="badge badge-before">before</span>
+                <span class="who" style="color: var(--muted2)">hand-rolled</span>
+              </div>
+              <ul class="checks">
+                <li>
+                  <span class="x">✕</span>
+                  <code class="chip chip-beige">docker-compose.test.yml</code> + 180 lines of
+                  setup/teardown
+                </li>
+                <li>
+                  <span class="x">✕</span>
+                  <code class="chip chip-beige">beforeAll(migrate, seed…)</code> /
+                  <code class="chip chip-beige">afterEach(truncate…)</code> in every repo
+                </li>
+                <li>
+                  <span class="x">✕</span> a shared dev DB that flakes; tests that can't run in
+                  parallel
+                </li>
+                <li><span class="x">✕</span> "works on my machine"</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <span class="badge badge-after">after</span>
+                <span class="who">babystack</span>
+              </div>
+              <ul class="checks">
+                <li>
+                  <span class="ok">✓</span> one
+                  <code class="chip chip-soft">babystack.config.ts</code>
+                </li>
+                <li>
+                  <span class="ok">✓</span> two lines in
+                  <code class="chip chip-soft">vitest.config.ts</code>
+                </li>
+                <li>
+                  <span class="ok">✓</span> test files unchanged — just
+                  <code class="chip chip-beige">pnpm test</code>
+                </li>
+                <li><span class="ok">✓</span> parallel, isolated, real, reproducible</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 07 today vs intended ──────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 07 · today vs. intended</div>
+          <h2 style="margin-top: 14px">
+            The engine is built &amp; proven; the glue lands sub-phase by sub-phase.
+          </h2>
+          <p class="lede">The flow above is the product experience. Here's what's real today.</p>
+          <div class="grid grid-3">
+            <div class="card">
+              <div class="klabel">engine <span class="badge badge-built">built</span></div>
+              <p>0.1–0.3 — proven against real MySQL.</p>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                <code class="chip chip-beige">pnpm test</code>
+                <span class="badge badge-built">built</span>
+              </div>
+              <p>Vitest wiring + parallel isolation (0.4–0.5); safety hardening (0.6).</p>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                <code class="chip chip-beige">baby</code> CLI
+                <span class="badge badge-built">built · 0.7</span>
+              </div>
+              <p>doctor · wake · home · reset · sleep — the operator + agent surface.</p>
+            </div>
+          </div>
+          <p class="note" style="margin-top: 26px">
+            Full written usage: <code class="chip chip-beige">docs/guide/getting-started.md</code> ·
+            internals: <a href="./design.html">How it works ↗</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot">
+        <div class="foot-brand">
+          <a class="brand" href="./index.html" aria-label="babystack home">
+            <span class="logo-tile" aria-hidden="true"></span>
+            <span class="wordmark" style="font-size: 16px">babystack</span>
+          </a>
+          <p class="foot-blurb">
+            Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable,
+            real backing services for tests and AI agents.
+          </p>
+        </div>
+        <nav class="foot-col" aria-label="Resources">
+          <div class="foot-h">Resources</div>
+          <a href="./docs.html">Docs</a>
+          <a href="./usage.html">Usage</a>
+          <a href="./design.html">How it works</a>
+          <a href="./roadmap.html">Roadmap</a>
+        </nav>
+        <nav class="foot-col" aria-label="Project">
+          <div class="foot-h">Project</div>
+          <a target="_blank" rel="noopener noreferrer" href="https://github.com/babystack/babystack"
+            >Repository</a
+          >
+          <a href="./release.html">Releases</a>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/LICENSE"
+            >License · Apache-2.0</a
+          >
+          <span class="foot-muted">npm — coming with publish</span>
+        </nav>
+        <nav class="foot-col" aria-label="Community">
+          <div class="foot-h">Community</div>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/discussions"
+            >Discussions</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/SECURITY.md"
+            >Security</a
+          >
+        </nav>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 Sharvil Kadam</span>
+        <span class="foot-dot">·</span>
+        <span class="foot-tag">A local baby of your production stack.</span>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

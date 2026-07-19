@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>babystack — docs</title>
+    <meta
+      name="description"
+      content="babystack docs: a live babystack.config.ts builder, plus the full reference — install, config schema, Vitest integration, the baby CLI, the agent loop, and troubleshooting error codes."
+    />
+    <link rel="icon" type="image/png" href="assets/logo-light-160.png" />
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('babystack-theme') || 'light',
+        )
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="bar">
+        <a class="brand" href="./index.html" aria-label="babystack home">
+          <span class="logo-tile" aria-hidden="true"></span>
+          <span class="wordmark">babystack</span>
+        </a>
+        <span class="badge badge-prealpha">pre-alpha</span>
+        <div class="spacer"></div>
+        <nav class="nav-links">
+          <a class="hide-sm" href="./why.html">Why</a>
+          <a class="hide-sm" href="./usage.html">Usage</a>
+          <a class="hide-sm" aria-current="page" href="./docs.html">Docs</a>
+          <a class="hide-sm" href="./roadmap.html">Roadmap</a>
+          <a class="hide-sm" href="./release.html">Release</a>
+          <button
+            class="btn btn-icon"
+            type="button"
+            id="theme-toggle"
+            aria-label="Switch color theme"
+            title="Switch light / dark"
+          >
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+              <g stroke="currentColor">
+                <line x1="12" y1="2.5" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="21.5" />
+                <line x1="2.5" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="21.5" y2="12" />
+                <line x1="5.2" y1="5.2" x2="7" y2="7" />
+                <line x1="17" y1="17" x2="18.8" y2="18.8" />
+                <line x1="18.8" y1="5.2" x2="17" y2="7" />
+                <line x1="7" y1="17" x2="5.2" y2="18.8" />
+              </g>
+            </svg>
+          </button>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary btn-sm"
+            href="https://github.com/babystack/babystack"
+            >GitHub ↗</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ── hero ──────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec" style="padding-bottom: 40px">
+          <div class="eyebrow"><span class="sq"></span> docs</div>
+          <h1 style="margin-top: 16px">Everything, in one page.</h1>
+          <p class="lede" style="max-width: 60ch">
+            Build a config below, then reference the whole surface — install, the config schema, the
+            Vitest wiring, the <code class="chip chip-beige">baby</code> CLI, the agent loop, and
+            what to do when something goes wrong. New here? The
+            <a href="./usage.html">Usage walkthrough</a> is the friendlier tour.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── interactive builder ───────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec" style="padding-top: 56px; padding-bottom: 56px">
+          <div class="eyebrow"><span class="sq"></span> config builder</div>
+          <h2 style="margin: 14px 0 8px">
+            Generate your <code class="chip chip-beige">babystack.config.ts</code>.
+          </h2>
+          <p class="lede" style="margin-bottom: 24px">
+            Every option here is real — babystack orchestrates a live
+            <code class="chip chip-beige">mysql:8.4</code> and runs your own migrate + seed commands
+            to build the baseline. Tweak and copy.
+          </p>
+          <div id="cfg-builder" class="builder">
+            <div class="builder-grid">
+              <div class="field">
+                <label for="cfg-name">Service name</label>
+                <input id="cfg-name" type="text" value="db" spellcheck="false" autocomplete="off" />
+                <span class="hint" id="cfg-name-hint"></span>
+              </div>
+              <div class="field">
+                <label for="cfg-image">MySQL image</label>
+                <select id="cfg-image">
+                  <option value="mysql:8.4">mysql:8.4</option>
+                  <option value="mysql:8.0">mysql:8.0</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cfg-preset">Migrations / seed</label>
+                <select id="cfg-preset">
+                  <option value="drizzle">Drizzle</option>
+                  <option value="prisma">Prisma</option>
+                  <option value="knex">Knex</option>
+                  <option value="sql">Raw SQL script</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cfg-invalidate">Rebuild on change</label>
+                <select id="cfg-invalidate">
+                  <option value="no">off</option>
+                  <option value="yes">watch migrations</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="cfg-cleanup">Teardown</label>
+                <select id="cfg-cleanup">
+                  <option value="destroy">destroy (default)</option>
+                  <option value="keep-on-failure">keep-on-failure</option>
+                  <option value="keep">keep</option>
+                </select>
+              </div>
+            </div>
+            <div class="builder-out">
+              <div class="out-h">
+                <span class="out-name">babystack.config.ts</span>
+                <button class="copy-btn" id="cfg-copy" type="button">copy</button>
+              </div>
+              <pre id="cfg-out"></pre>
+            </div>
+          </div>
+          <p class="note" style="margin-top: 16px; max-width: 60ch">
+            More engines (Redis, S3/MinIO, DynamoDB, SQS, LocalStack) are on the
+            <a href="./roadmap.html">roadmap</a> — the config union already reserves their shape,
+            but only <code class="chip chip-beige">mysql</code> is built today.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── reference ─────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="docs">
+          <aside class="docs-side">
+            <p class="side-h">On this page</p>
+            <nav>
+              <a href="#install">Install</a>
+              <a href="#config">Config</a>
+              <a href="#vitest">Vitest</a>
+              <a href="#cli">CLI</a>
+              <a href="#agents">Agent loop</a>
+              <a href="#errors">Troubleshooting</a>
+            </nav>
+          </aside>
+
+          <div class="docs-main">
+            <!-- install -->
+            <div class="doc-sec" id="install">
+              <h2>Install</h2>
+              <p>
+                Add the Vitest wedge and the engine to your dev dependencies. The
+                <code class="chip chip-beige">baby</code> CLI is optional — grab it if you or an
+                agent wants a persistent database outside the test run.
+              </p>
+              <pre
+                class="code"
+              ><span class="c"># the MySQL + Vitest wedge — one package (pulls the engine transitively)</span>
+<span class="k">pnpm</span> add -D @babystack/vitest
+
+<span class="c"># optional: the baby CLI (operator + agent surface)</span>
+<span class="k">pnpm</span> add -D babystack</pre>
+              <p class="note">
+                Pre-alpha: not on npm yet — run it from source (see
+                <a href="./release.html">the release</a>). Requires Docker running and Node ≥ 22.
+              </p>
+            </div>
+
+            <!-- config -->
+            <div class="doc-sec" id="config">
+              <h2>Config — <code class="chip chip-beige">babystack.config.ts</code></h2>
+              <p>
+                One file describes your backend. <code class="chip chip-soft">defineConfig</code> is
+                a pure identity helper that gives your editor full typing and fails fast on
+                obviously invalid config. You define at least one service under
+                <code class="chip chip-beige">services</code>, keyed by a name (<code
+                  class="chip chip-beige"
+                  >[A-Za-z0-9_]{1,32}</code
+                >
+                — it becomes a cache path and a SQL identifier).
+              </p>
+              <pre
+                class="code big"
+              ><span class="k">import</span> { defineConfig } <span class="k">from</span> <span class="s">'@babystack/core'</span>
+
+<span class="k">export default</span> defineConfig({
+  services: {
+    db: {
+      engine: <span class="s">'mysql'</span>,           <span class="c">// the only built engine (others reserved)</span>
+      image: <span class="s">'mysql:8.4'</span>,       <span class="c">// any real mysql tag</span>
+      database: <span class="s">'app'</span>,           <span class="c">// optional logical DB name</span>
+      baseline: {
+        build: [<span class="s">'pnpm db:migrate'</span>, <span class="s">'pnpm db:seed'</span>],
+        <span class="c">// change any matched file → rebuild the baseline</span>
+        invalidateWhenChanged: [<span class="s">'drizzle/**'</span>, <span class="s">'db/seed.*'</span>],
+      },
+      test: { cleanup: <span class="s">'destroy'</span> }, <span class="c">// or 'keep' / 'keep-on-failure'</span>
+    },
+  },
+})</pre>
+              <h3>Fields</h3>
+              <div class="matrix-wrap">
+                <table class="deftable">
+                  <thead>
+                    <tr>
+                      <th>Field</th>
+                      <th>Type</th>
+                      <th>What it does</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><code class="chip chip-beige">engine</code></td>
+                      <td>required</td>
+                      <td>
+                        <code class="chip chip-beige">'mysql'</code> today. The union reserves
+                        <code class="chip chip-beige">redis</code>,
+                        <code class="chip chip-beige">minio</code>,
+                        <code class="chip chip-beige">dynamodb-local</code>,
+                        <code class="chip chip-beige">elasticmq</code>,
+                        <code class="chip chip-beige">localstack</code> for the roadmap.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">image</code></td>
+                      <td>optional</td>
+                      <td>
+                        The Docker image tag — any real
+                        <code class="chip chip-beige">mysql:*</code>. Defaults to a pinned tag.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">database</code></td>
+                      <td>optional</td>
+                      <td>Logical database name (MySQL service only).</td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baseline.build</code></td>
+                      <td>string[]</td>
+                      <td>
+                        Your own shell commands (migrate + seed), run <strong>once</strong> against
+                        a throwaway build DB. babystack never edits them.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baseline.strategy</code></td>
+                      <td>optional</td>
+                      <td>
+                        <code class="chip chip-beige">'logical-dump'</code> (the only value in Phase
+                        0 — <code class="chip chip-beige">mysqldump</code> → reload).
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baseline.invalidateWhenChanged</code></td>
+                      <td>glob[]</td>
+                      <td>
+                        File globs whose content feeds the invalidation hash — a change rebuilds the
+                        baseline.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">test.reset</code></td>
+                      <td>optional</td>
+                      <td>
+                        <code class="chip chip-beige">'snapshot'</code> — a fresh per-worker DB
+                        reloaded from the baseline per test file.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">test.cleanup</code></td>
+                      <td>optional</td>
+                      <td>
+                        <code class="chip chip-beige">'destroy'</code> (default) ·
+                        <code class="chip chip-beige">'keep-on-failure'</code> ·
+                        <code class="chip chip-beige">'keep'</code> (leave the container up to
+                        inspect).
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- vitest -->
+            <div class="doc-sec" id="vitest">
+              <h2>Vitest integration</h2>
+              <p>
+                Three lines in <code class="chip chip-soft">vitest.config.ts</code> — the entire
+                test-infra change. No test file imports babystack or manages a database.
+              </p>
+              <pre
+                class="code big"
+              ><span class="k">import</span> { defineConfig } <span class="k">from</span> <span class="s">'vitest/config'</span>
+
+<span class="k">export default</span> defineConfig({
+  test: {
+    globalSetup: [<span class="s">'@babystack/vitest/global-setup'</span>], <span class="c">// provision + baseline, once</span>
+    setupFiles: [<span class="s">'@babystack/vitest/setup'</span>],         <span class="c">// fresh DB + DATABASE_URL, per file</span>
+    pool: <span class="s">'forks'</span>,                                   <span class="c">// per-worker DB via VITEST_POOL_ID</span>
+  },
+})</pre>
+              <p>
+                <strong>globalSetup</strong> (main process) provisions the container and builds the
+                baseline once, then hands coordinates to workers. <strong>setupFiles</strong> (each
+                worker) opens a fresh lease and sets
+                <code class="chip chip-soft">DATABASE_URL</code> via top-level await —
+                <em>before</em> your app imports — so the app reads it exactly like production.
+              </p>
+            </div>
+
+            <!-- cli -->
+            <div class="doc-sec" id="cli">
+              <h2>CLI — <code class="chip chip-beige">baby</code></h2>
+              <p>
+                A persistent seeded MySQL outside the test run — for local dev and coding agents.
+                Every command speaks <code class="chip chip-beige">--json</code> for CI and agents.
+              </p>
+              <div class="matrix-wrap">
+                <table class="deftable">
+                  <thead>
+                    <tr>
+                      <th>Command</th>
+                      <th>Alias</th>
+                      <th>What it does</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><code class="chip chip-beige">baby doctor</code></td>
+                      <td>—</td>
+                      <td>
+                        Check Docker, Node, and your
+                        <code class="chip chip-beige">babystack.config.ts</code> (incl. an
+                        import-time <code class="chip chip-soft">DATABASE_URL</code> preflight).
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baby wake</code></td>
+                      <td><code class="chip chip-beige">up</code></td>
+                      <td>Provision + seed a real MySQL and leave it running.</td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baby home</code></td>
+                      <td><code class="chip chip-beige">env</code></td>
+                      <td>
+                        Print an eval-able <code class="chip chip-soft">DATABASE_URL</code> for the
+                        running stack (non-destructive).
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baby reset</code></td>
+                      <td>—</td>
+                      <td>
+                        Reload a pristine DB from the baseline — same URL, no re-provision. The
+                        agent's undo.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">baby sleep</code></td>
+                      <td><code class="chip chip-beige">down</code></td>
+                      <td>Dispose this project's running stack (container + volume).</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="note" style="margin-top: 16px">
+                The container is rediscovered across invocations by a stable project label; the
+                minted password is recovered from
+                <code class="chip chip-beige">docker inspect</code>, never written to a file.
+              </p>
+            </div>
+
+            <!-- agents -->
+            <div class="doc-sec" id="agents">
+              <h2>The agent loop</h2>
+              <p>
+                A coding agent gets a real backend it can break across many commands, then
+                <code class="chip chip-beige">reset</code> to pristine between attempts — the
+                connection URL never changes.
+              </p>
+              <pre
+                class="code big"
+              ><span class="k">baby</span> wake                 <span class="c"># provision + seed a real MySQL, left running</span>
+<span class="k">eval</span> "$(baby home)"        <span class="c"># export DATABASE_URL for this shell</span>
+<span class="c"># … the agent writes / migrates / queries, checks the result …</span>
+<span class="k">baby</span> reset                <span class="c"># back to the pristine baseline, same URL — try again</span>
+<span class="k">baby</span> sleep                <span class="c"># done: dispose the container</span></pre>
+            </div>
+
+            <!-- errors -->
+            <div class="doc-sec" id="errors">
+              <h2>Troubleshooting</h2>
+              <p>babystack fails with typed error codes, not opaque strings. The common ones:</p>
+              <div class="matrix-wrap">
+                <table class="deftable">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Meaning &amp; fix</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><code class="chip chip-beige">DOCKER_UNAVAILABLE</code></td>
+                      <td>
+                        The Docker engine isn't reachable. Start Docker/Colima; confirm with
+                        <code class="chip chip-beige">baby doctor</code>.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">WAIT_READY_TIMEOUT</code></td>
+                      <td>
+                        MySQL didn't accept authenticated connections in time — usually a slow first
+                        boot or an overloaded Docker VM. Retry; give the VM more CPU/RAM.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">BASELINE_BUILD_FAILED</code></td>
+                      <td>
+                        One of your <code class="chip chip-beige">baseline.build</code> commands
+                        failed. Run the migrate/seed commands by hand to see the real error.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">BASELINE_CORRUPT</code></td>
+                      <td>
+                        A cached baseline failed its checksum — it will never silently load wrong
+                        seed state. Delete <code class="chip chip-beige">.babystack/cache</code> to
+                        rebuild.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">CONFIG_INVALID</code></td>
+                      <td>
+                        Bad <code class="chip chip-beige">babystack.config.ts</code> — no services,
+                        an unknown engine, or an illegal service name. The message says which.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">ENV_READ_TOO_EARLY</code></td>
+                      <td>
+                        <code class="chip chip-beige">baby doctor</code> found code reading
+                        <code class="chip chip-soft">DATABASE_URL</code> at import time — read it
+                        lazily (inside a function) so the injected value is seen.
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><code class="chip chip-beige">VITEST_POOL_ID</code> missing</td>
+                      <td>
+                        The worker couldn't find its pool id — set
+                        <code class="chip chip-soft">pool: 'forks'</code> in
+                        <code class="chip chip-soft">vitest.config.ts</code>.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="note" style="margin-top: 16px">
+                Still stuck? Open an issue on
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href="https://github.com/babystack/babystack"
+                  >GitHub</a
+                >
+                — pre-alpha, and feedback shapes the order.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot">
+        <div class="foot-brand">
+          <a class="brand" href="./index.html" aria-label="babystack home">
+            <span class="logo-tile" aria-hidden="true"></span>
+            <span class="wordmark" style="font-size: 16px">babystack</span>
+          </a>
+          <p class="foot-blurb">
+            Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable,
+            real backing services for tests and AI agents.
+          </p>
+        </div>
+        <nav class="foot-col" aria-label="Resources">
+          <div class="foot-h">Resources</div>
+          <a href="./docs.html">Docs</a>
+          <a href="./usage.html">Usage</a>
+          <a href="./design.html">How it works</a>
+          <a href="./roadmap.html">Roadmap</a>
+        </nav>
+        <nav class="foot-col" aria-label="Project">
+          <div class="foot-h">Project</div>
+          <a target="_blank" rel="noopener noreferrer" href="https://github.com/babystack/babystack"
+            >Repository</a
+          >
+          <a href="./release.html">Releases</a>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/LICENSE"
+            >License · Apache-2.0</a
+          >
+          <span class="foot-muted">npm — coming with publish</span>
+        </nav>
+        <nav class="foot-col" aria-label="Community">
+          <div class="foot-h">Community</div>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/discussions"
+            >Discussions</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/SECURITY.md"
+            >Security</a
+          >
+        </nav>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 Sharvil Kadam</span>
+        <span class="foot-dot">·</span>
+        <span class="foot-tag">A local baby of your production stack.</span>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

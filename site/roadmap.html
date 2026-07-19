@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>babystack — roadmap</title>
+    <meta
+      name="description"
+      content="Where babystack is going: Phase 0 (the MySQL + Vitest wedge) is complete; next is warm-pool speed, then the public MVP, the agent MCP wedge, and multi-engine breadth. Broaden by re-exposing one engine to new consumers, never by acquiring new problem domains."
+    />
+    <link rel="icon" type="image/png" href="assets/logo-light-160.png" />
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('babystack-theme') || 'light',
+        )
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="bar">
+        <a class="brand" href="./index.html" aria-label="babystack home">
+          <span class="logo-tile" aria-hidden="true"></span>
+          <span class="wordmark">babystack</span>
+        </a>
+        <span class="badge badge-prealpha">pre-alpha</span>
+        <div class="spacer"></div>
+        <nav class="nav-links">
+          <a class="hide-sm" href="./why.html">Why</a>
+          <a class="hide-sm" href="./usage.html">Usage</a>
+          <a class="hide-sm" href="./docs.html">Docs</a>
+          <a class="hide-sm" aria-current="page" href="./roadmap.html">Roadmap</a>
+          <a class="hide-sm" href="./release.html">Release</a>
+          <button
+            class="btn btn-icon"
+            type="button"
+            id="theme-toggle"
+            aria-label="Switch color theme"
+            title="Switch light / dark"
+          >
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+              <g stroke="currentColor">
+                <line x1="12" y1="2.5" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="21.5" />
+                <line x1="2.5" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="21.5" y2="12" />
+                <line x1="5.2" y1="5.2" x2="7" y2="7" />
+                <line x1="17" y1="17" x2="18.8" y2="18.8" />
+                <line x1="18.8" y1="5.2" x2="17" y2="7" />
+                <line x1="7" y1="17" x2="5.2" y2="18.8" />
+              </g>
+            </svg>
+          </button>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary btn-sm"
+            href="https://github.com/babystack/babystack"
+            >GitHub ↗</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ── hero ──────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> roadmap</div>
+          <h1 style="margin-top: 16px">Where babystack is going.</h1>
+          <p class="lede" style="max-width: 60ch">
+            One engine — a fresh, seeded, disposable real backend — re-exposed to more consumers
+            over time. We broaden by reaching new <em>consumers</em> (local dev, CI, agents), never
+            by acquiring new <em>problem domains</em> (data generation, masking, hosting). Built one
+            sub-phase at a time, each behind an adversarial-review gate.
+          </p>
+          <p class="note">
+            Status: <span class="accent">pre-alpha</span> · Phase 0 complete (0.1–0.8) · warm-pool
+            speed (0.9) next
+          </p>
+        </div>
+      </section>
+
+      <!-- ── phase 0 — done ────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow">
+            <span class="sq"></span> phase 0 · the wedge
+            <span class="badge badge-built" style="margin-left: 6px">complete</span>
+          </div>
+          <h2 style="margin-top: 14px">MySQL + Vitest, proven on a real app.</h2>
+          <p class="lede">
+            The
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href="https://github.com/babystack/babystack/tree/main/examples/users-api"
+              >example app</a
+            >'s suite runs against fresh, isolated, seeded real MySQL — parallel workers, zero
+            test-code changes, clean teardown, reproducibly. Every sub-phase shipped with tests and
+            passed the review gate.
+          </p>
+          <div class="grid grid-3" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">0.1 core <span class="badge badge-built">done</span></div>
+              <p>
+                The pure seam — <code class="chip chip-beige">Lease</code>/<code
+                  class="chip chip-beige"
+                  >Pool</code
+                >, injected <code class="chip chip-beige">Clock</code>/<code class="chip chip-beige"
+                  >CommandRunner</code
+                >, no I/O.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.2 docker <span class="badge badge-built">done</span></div>
+              <p>
+                The generic muscle — provision, authenticated wait-ready, idempotent dispose,
+                label-scoped GC.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.3 mysql <span class="badge badge-built">done</span></div>
+              <p>
+                Seeded <code class="chip chip-beige">mysqldump</code> baseline in a scrubbed env;
+                fresh per-worker leased DBs.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.4 vitest <span class="badge badge-built">done</span></div>
+              <p>
+                globalSetup + per-file setup;
+                <code class="chip chip-soft">DATABASE_URL</code> injected before the app imports.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.5 parallelism <span class="badge badge-built">done</span></div>
+              <p>
+                A DB per forked worker, cross-worker sentinel, baseline built exactly once, green
+                across repeats.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.6 safety <span class="badge badge-built">done</span></div>
+              <p>
+                Checksum-verified baselines (<code class="chip chip-beige">BASELINE_CORRUPT</code>)
+                + secret redaction.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.7 cli + agent <span class="badge badge-built">done</span></div>
+              <p>
+                The <code class="chip chip-beige">baby</code> CLI — doctor · wake · home · reset ·
+                sleep, all <code class="chip chip-beige">--json</code>; the agent undo loop.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">0.8 example app <span class="badge badge-built">done</span></div>
+              <p>Real Express 5 + Drizzle + MySQL, zero babystack imports, green in CI Tier-2.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── what's next ───────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> what's next</div>
+          <h2 style="margin-top: 14px">The path to public.</h2>
+
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">
+                phase 2 · speed as DX <span class="badge badge-later">next: 0.9</span>
+              </div>
+              <h3>Warm-pool speed.</h3>
+              <p>
+                A pre-warmed container pool + per-worker DBs + async reset — with honest, measured
+                numbers per platform. Plus a retry/cleanup scheduler and orphan-container/volume GC.
+                <strong>Correctness before speed, always</strong> — the cache trust cliff.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                phase 1 · public MVP <span class="badge badge-later">planned</span>
+              </div>
+              <h3>Ship it wide.</h3>
+              <p>
+                Logical-dump baseline · conservative invalidation hashing + explicit opt-out (lands
+                <em>before</em> any speed path) · local cache · GitHub Actions + CircleCI docs.
+                Flagship post, 3–4 example repos (Prisma / Drizzle / TypeORM),
+                <code class="chip chip-beige">llms.txt</code>.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                phase 2.5 · agents <span class="badge badge-later">planned</span>
+              </div>
+              <h3>The agent data plane.</h3>
+              <p>
+                The same engine over an agent-facing interface — <strong>CLI-first</strong> (<code
+                  class="chip chip-beige"
+                  >baby wake --json</code
+                >), MCP-optional. Launch into the coding-agent ecosystem. The interface is a choice,
+                not the identity.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">
+                phase 3 · breadth <span class="badge badge-later">planned</span>
+              </div>
+              <h3>More engines, each a mini-launch.</h3>
+              <p>
+                Redis → MinIO (S3) → DynamoDB Local → ElasticMQ (SQS) → the LocalStack driver. The
+                launch cadence <em>is</em> the breadth. Pull-driven — we add an engine when the
+                wedge earns it.
+              </p>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 24px">
+            <div class="klabel">
+              phase 4+ · optional / commercial <span class="badge badge-later">someday</span>
+            </div>
+            <p>
+              Sanitized prod imports (masking default-on) · a full local-dev mode · whole-stack
+              consistent-snapshot mode · remote copy-on-write workers and CI database pools.
+              Explored only if the earlier phases pull for it.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── the through-line ──────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> the through-line</div>
+          <h2 style="margin-top: 14px">One engine. New consumers, never new domains.</h2>
+          <div class="callout">
+            <p>
+              babystack is <strong>the engine</strong> that hands you a fresh, seeded, disposable
+              real backend. MySQL + Vitest is the first delivery vehicle; the core investment is the
+              content-addressed cache + a cross-OS copy-on-write clone ladder. We broaden by
+              re-exposing that one engine to local dev, CI, and agents — <strong>not</strong> by
+              taking on data generation, masking, or hosting. That's the discipline that keeps the
+              tool simple as it grows.
+            </p>
+          </div>
+          <p class="note" style="margin-top: 24px; max-width: 68ch">
+            The living plan (with per-sub-phase detail + the deferred hardening backlog) is
+            <code class="chip chip-beige">docs/ROADMAP.md</code> in the repo — this page tracks it.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── contribute / cta ──────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div style="text-align: center">
+            <div class="eyebrow" style="justify-content: center">
+              <span class="sq"></span> contribute
+            </div>
+            <h2 style="margin: 14px 0 12px">Follow along — or help build it.</h2>
+            <p class="lede" style="margin: 0 auto 34px">
+              Pre-alpha and open source (Apache-2.0). Stars, issues, and engine requests all shape
+              the order — here's where to jump in.
+            </p>
+          </div>
+          <div class="grid grid-3">
+            <div class="card">
+              <div class="klabel">star &amp; watch</div>
+              <p>
+                Star the repo to signal demand, and watch releases so you catch each phase the day
+                it ships.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">open an issue</div>
+              <p>
+                Bugs, rough edges, or a workflow that doesn't fit yet — issues are the fastest way
+                to shape what's built next.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">request an engine</div>
+              <p>
+                Breadth is pull-driven. Tell us which backing service you need next — Redis, S3,
+                SQS, and beyond.
+              </p>
+            </div>
+          </div>
+          <div class="cta" style="justify-content: center; margin-top: 34px">
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-primary btn-lg"
+              href="https://github.com/babystack/babystack"
+              >Star on GitHub</a
+            >
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-secondary btn-lg"
+              href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+              >Read the contributing guide</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot">
+        <div class="foot-brand">
+          <a class="brand" href="./index.html" aria-label="babystack home">
+            <span class="logo-tile" aria-hidden="true"></span>
+            <span class="wordmark" style="font-size: 16px">babystack</span>
+          </a>
+          <p class="foot-blurb">
+            Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable,
+            real backing services for tests and AI agents.
+          </p>
+        </div>
+        <nav class="foot-col" aria-label="Resources">
+          <div class="foot-h">Resources</div>
+          <a href="./docs.html">Docs</a>
+          <a href="./usage.html">Usage</a>
+          <a href="./design.html">How it works</a>
+          <a href="./roadmap.html">Roadmap</a>
+        </nav>
+        <nav class="foot-col" aria-label="Project">
+          <div class="foot-h">Project</div>
+          <a target="_blank" rel="noopener noreferrer" href="https://github.com/babystack/babystack"
+            >Repository</a
+          >
+          <a href="./release.html">Releases</a>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/LICENSE"
+            >License · Apache-2.0</a
+          >
+          <span class="foot-muted">npm — coming with publish</span>
+        </nav>
+        <nav class="foot-col" aria-label="Community">
+          <div class="foot-h">Community</div>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/discussions"
+            >Discussions</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/SECURITY.md"
+            >Security</a
+          >
+        </nav>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 Sharvil Kadam</span>
+        <span class="foot-dot">·</span>
+        <span class="foot-tag">A local baby of your production stack.</span>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

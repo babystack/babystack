@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>babystack — why babystack</title>
+    <meta
+      name="description"
+      content="Why babystack: the only way to test against a real, isolated, seeded MySQL — in parallel, with zero test-code changes, and an agent-native reset loop. An honest comparison vs shared DBs, transaction rollback, SQLite, mocks, docker-compose, and raw Testcontainers, with a measured benchmark."
+    />
+    <link rel="icon" type="image/png" href="assets/logo-light-160.png" />
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('babystack-theme') || 'light',
+        )
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="bar">
+        <a class="brand" href="./index.html" aria-label="babystack home">
+          <span class="logo-tile" aria-hidden="true"></span>
+          <span class="wordmark">babystack</span>
+        </a>
+        <span class="badge badge-prealpha">pre-alpha</span>
+        <div class="spacer"></div>
+        <nav class="nav-links">
+          <a class="hide-sm" aria-current="page" href="./why.html">Why</a>
+          <a class="hide-sm" href="./usage.html">Usage</a>
+          <a class="hide-sm" href="./docs.html">Docs</a>
+          <a class="hide-sm" href="./roadmap.html">Roadmap</a>
+          <a class="hide-sm" href="./release.html">Release</a>
+          <button
+            class="btn btn-icon"
+            type="button"
+            id="theme-toggle"
+            aria-label="Switch color theme"
+            title="Switch light / dark"
+          >
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+              <g stroke="currentColor">
+                <line x1="12" y1="2.5" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="21.5" />
+                <line x1="2.5" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="21.5" y2="12" />
+                <line x1="5.2" y1="5.2" x2="7" y2="7" />
+                <line x1="17" y1="17" x2="18.8" y2="18.8" />
+                <line x1="18.8" y1="5.2" x2="17" y2="7" />
+                <line x1="7" y1="17" x2="5.2" y2="18.8" />
+              </g>
+            </svg>
+          </button>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary btn-sm"
+            href="https://github.com/babystack/babystack"
+            >GitHub ↗</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ── hero ──────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> why babystack</div>
+          <h1 style="margin-top: 16px">
+            Every other option makes you<br />
+            <span class="accent">pick two.</span> babystack doesn't.
+          </h1>
+          <p class="lede" style="max-width: 60ch">
+            Real engine. Isolated per test. Parallel-safe. Committed writes, DDL, and constraints.
+            Zero test-code changes. An undo button for agents. Pick the shared DB and you lose
+            isolation; pick rollback and you lose real DDL; pick SQLite and you lose the engine.
+            babystack is the one row that's all yeses.
+          </p>
+          <div class="cta">
+            <a class="btn btn-primary btn-lg" href="./usage.html">See how it's used →</a>
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-secondary btn-lg"
+              href="https://github.com/babystack/babystack"
+              >Star on GitHub</a
+            >
+          </div>
+          <p class="note" style="max-width: 33rem">
+            Honest by rule — no "instant" claims. The speed numbers below are measured, with method.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── 01 the matrix ─────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 01 · the honest comparison</div>
+          <h2 style="margin-top: 14px">
+            Six ways to get a test database. One that doesn't compromise.
+          </h2>
+          <p class="lede">
+            Each alternative trades away something real. Read across the rows — only the last one
+            keeps every column.
+          </p>
+          <div class="matrix-wrap">
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Approach</th>
+                  <th scope="col">Real MySQL<br />engine</th>
+                  <th scope="col">Isolated per test<br />(parallel-safe)</th>
+                  <th scope="col">Committed writes<br />+ DDL + constraints</th>
+                  <th scope="col">Zero test-code<br />changes</th>
+                  <th scope="col">Seeded baseline,<br />cached &amp; reused</th>
+                  <th scope="col">Agent reset<br />loop</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Shared dev / CI database</th>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr>
+                  <th scope="row">Transaction rollback</th>
+                  <td class="yes">✓</td>
+                  <td class="part">~</td>
+                  <td class="no">✗</td>
+                  <td class="no">✗</td>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr>
+                  <th scope="row">SQLite / in-memory swap</th>
+                  <td class="no">✗</td>
+                  <td class="yes">✓</td>
+                  <td class="part">~</td>
+                  <td class="no">✗</td>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr>
+                  <th scope="row">Mocked data layer</th>
+                  <td class="no">✗</td>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                  <td class="no">✗</td>
+                  <td class="no">✗</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr>
+                  <th scope="row">Hand-rolled docker-compose</th>
+                  <td class="yes">✓</td>
+                  <td class="part">~</td>
+                  <td class="yes">✓</td>
+                  <td class="part">~</td>
+                  <td class="part">~</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr>
+                  <th scope="row">Raw Testcontainers</th>
+                  <td class="yes">✓</td>
+                  <td class="part">~</td>
+                  <td class="yes">✓</td>
+                  <td class="no">✗</td>
+                  <td class="part">~</td>
+                  <td class="no">✗</td>
+                </tr>
+                <tr class="us">
+                  <th scope="row">babystack</th>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                  <td class="yes">✓</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="legend">
+            <span><b class="yes">✓</b> yes</span>
+            <span><b class="part">~</b> only if you build &amp; maintain it yourself</span>
+            <span><b class="no">✗</b> no</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 02 the trades, in words ───────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 02 · what each one actually costs you</div>
+          <h2 style="margin-top: 14px">The compromise, spelled out.</h2>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card">
+              <h3>Shared dev / CI database</h3>
+              <p>
+                Real, but <strong>one copy</strong>. Tests race each other, can't run in parallel,
+                and leave state behind — the flaky suite everyone dreads. Reset is a manual script.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Transaction rollback</h3>
+              <p>
+                Fast and isolated <em>within one connection</em> — but your code can't test its own
+                transactions, <strong>DDL breaks the wrapper</strong>, and anything opening a second
+                connection sees nothing. You're testing a fiction.
+              </p>
+            </div>
+            <div class="card">
+              <h3>SQLite / in-memory</h3>
+              <p>
+                Not your engine. Different SQL dialect, different constraint semantics, different
+                JSON/enum/collation behaviour — <strong>bugs that only appear in prod</strong> sail
+                through green.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Mocks</h3>
+              <p>
+                You assert against your own assumptions. The moment the real query, constraint, or
+                migration disagrees, the mock still passes.
+                <strong>Tests that can't fail for the right reason.</strong>
+              </p>
+            </div>
+            <div class="card">
+              <h3>Hand-rolled docker-compose</h3>
+              <p>
+                Real engine — but you write and maintain 150 lines of compose + setup/teardown +
+                per-worker wiring + baseline caching, in <strong>every repo</strong>. babystack is
+                that, as config.
+              </p>
+            </div>
+            <div class="card">
+              <h3>Raw Testcontainers</h3>
+              <p>
+                Great primitive — but the lifecycle lives in your <strong>test code</strong>, and
+                per-worker isolation, a seeded+cached baseline, and an agent loop are all yours to
+                build. babystack rides <em>on top</em> of exactly this.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 03 the scream ─────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 03 · so, why babystack</div>
+          <h2 style="margin-top: 14px">Four things nothing else gives you together.</h2>
+          <div class="grid grid-2" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">real, never emulated</div>
+              <h3>It's the actual engine.</h3>
+              <p>
+                A real <code class="chip chip-beige">mysql:8.4</code> over a normal
+                <code class="chip chip-soft">DATABASE_URL</code>. Committed writes, DDL, triggers,
+                and a real <code class="chip chip-beige">UNIQUE</code> 409 — all behave exactly as
+                they will in production, because they <em>are</em> production's engine.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">isolated, in parallel</div>
+              <h3>A fresh DB per worker.</h3>
+              <p>
+                One container, a database per Vitest worker, reloaded from the baseline
+                <strong>per test file</strong>. Suites run in parallel with zero cross-talk — no
+                shared state, no "works alone, fails together."
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">zero test-code changes</div>
+              <h3>Your tests don't know.</h3>
+              <p>
+                One <code class="chip chip-soft">babystack.config.ts</code>, three lines in
+                <code class="chip chip-soft">vitest.config.ts</code>. No test file imports babystack
+                or manages a database. Rip it out and the tests still read
+                <code class="chip chip-soft">DATABASE_URL</code>.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">agent-native</div>
+              <h3>An undo button for agents.</h3>
+              <p>
+                <code class="chip chip-beige">baby wake · home · reset · sleep</code> — a persistent
+                seeded MySQL a coding agent can break across many commands, then
+                <code class="chip chip-beige">reset</code> to pristine. The URL never changes.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 04 benchmark ──────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 04 · honest speed</div>
+          <h2 style="margin-top: 14px">Fast enough for CI — and we'll show our work.</h2>
+          <p class="lede">
+            babystack will never claim an "instant" clone: MySQL has no in-server template, so a
+            real engine boots in seconds. The trick is paying that cost
+            <strong>once per run</strong>, not per test. Here's the real
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href="https://github.com/babystack/babystack/tree/main/examples/users-api"
+              >example app</a
+            >
+            suite, measured end-to-end.
+          </p>
+          <div class="stats">
+            <div class="stat">
+              <div class="num">~11.7<span class="unit">s</span></div>
+              <p class="lbl">
+                <strong>Cold run, end-to-end.</strong> No cache: boot real MySQL, build the seeded
+                baseline, run all tests. Image already pulled.
+              </p>
+            </div>
+            <div class="stat">
+              <div class="num">~10.3<span class="unit">s</span></div>
+              <p class="lbl">
+                <strong>Warm run (cache hit).</strong> Baseline restored from the cached dump — the
+                build step is skipped entirely.
+              </p>
+            </div>
+            <div class="stat">
+              <div class="num">~250<span class="unit">ms</span></div>
+              <p class="lbl">
+                <strong>Per test file.</strong> A fresh, seeded, isolated database handed to each
+                file once the engine is warm.
+              </p>
+            </div>
+            <div class="stat">
+              <div class="num">1<span class="unit">×</span></div>
+              <p class="lbl">
+                <strong>Container boots.</strong> Once — not per test, not per file, not per worker.
+                That single boot is most of the wall-clock.
+              </p>
+            </div>
+          </div>
+          <div class="callout" style="margin-top: 26px">
+            <p>
+              <strong>Method.</strong> <code class="chip chip-beige">examples/users-api</code> — 3
+              files / 4 tests, Vitest 4 on forked workers, real
+              <code class="chip chip-beige">mysql:8.4</code>. Measured on a MacBook via Colima
+              (2-CPU / 4&nbsp;GB VM), Docker 29.5, Node 24. The cache's win scales with your
+              migration + seed size — this example's seed is tiny, so it only saves ~1.4s here; a
+              real schema saves far more. Numbers are a snapshot, not a leaderboard — reproduce them
+              with <code class="chip chip-beige">pnpm --filter users-api test</code>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── 05 compose don't compete ──────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 05 · compose, don't compete</div>
+          <h2 style="margin-top: 14px">babystack sits on top of the good primitives.</h2>
+          <p class="lede">
+            It's not a rival to Docker, Testcontainers, or LocalStack — it's the opinionated,
+            config-first, zero-test-code, agent-ready layer <em>on top</em> of them.
+          </p>
+          <div class="grid grid-3" style="margin-top: 32px">
+            <div class="card">
+              <div class="klabel">consumes</div>
+              <p>
+                Docker — babystack shells out to the real
+                <code class="chip chip-beige">docker</code> CLI to run the real engine.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">rides on</div>
+              <p>
+                The same idea as Testcontainers — and reserves the seam to <strong>adopt</strong> a
+                MySQL snapshot driver as a faster reset path if one ships.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">delegates to</div>
+              <p>
+                LocalStack for the AWS tail — babystack never reimplements a proprietary API. A
+                platform feature is an upgrade, not an obituary.
+              </p>
+            </div>
+          </div>
+          <div class="callout" style="margin-top: 26px">
+            <p>
+              The durable value isn't any single primitive — it's
+              <strong>config-first, whole-stack, zero-test-code, agent DX</strong>, delivered the
+              same way to tests, CI, local dev, and agents.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── cta ───────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec" style="text-align: center">
+          <h2 style="margin: 0 auto 14px; max-width: 18ch">Delete the test-database plumbing.</h2>
+          <p class="lede" style="margin: 0 auto 32px; max-width: 60ch">
+            One config file, and every run gets a fresh, disposable copy of the real services your
+            app uses — a local baby of your production stack. Real MySQL today; more engines next.
+          </p>
+          <div class="cta" style="justify-content: center">
+            <a class="btn btn-primary btn-lg" href="./usage.html">Get started →</a>
+            <a class="btn btn-secondary btn-lg" href="./design.html">How it works</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot">
+        <div class="foot-brand">
+          <a class="brand" href="./index.html" aria-label="babystack home">
+            <span class="logo-tile" aria-hidden="true"></span>
+            <span class="wordmark" style="font-size: 16px">babystack</span>
+          </a>
+          <p class="foot-blurb">
+            Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable,
+            real backing services for tests and AI agents.
+          </p>
+        </div>
+        <nav class="foot-col" aria-label="Resources">
+          <div class="foot-h">Resources</div>
+          <a href="./docs.html">Docs</a>
+          <a href="./usage.html">Usage</a>
+          <a href="./design.html">How it works</a>
+          <a href="./roadmap.html">Roadmap</a>
+        </nav>
+        <nav class="foot-col" aria-label="Project">
+          <div class="foot-h">Project</div>
+          <a target="_blank" rel="noopener noreferrer" href="https://github.com/babystack/babystack"
+            >Repository</a
+          >
+          <a href="./release.html">Releases</a>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/LICENSE"
+            >License · Apache-2.0</a
+          >
+          <span class="foot-muted">npm — coming with publish</span>
+        </nav>
+        <nav class="foot-col" aria-label="Community">
+          <div class="foot-h">Community</div>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/discussions"
+            >Discussions</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/SECURITY.md"
+            >Security</a
+          >
+        </nav>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 Sharvil Kadam</span>
+        <span class="foot-dot">·</span>
+        <span class="foot-tag">A local baby of your production stack.</span>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>babystack v0.1.0-alpha.1 — Phase 0 release</title>
+    <meta
+      name="description"
+      content="babystack v0.1.0-alpha.1 (pre-alpha) — Phase 0 complete: the MySQL + Vitest wedge and the baby CLI, proven end-to-end against real MySQL."
+    />
+    <link rel="icon" type="image/png" href="assets/logo-light-160.png" />
+    <script>
+      try {
+        document.documentElement.setAttribute(
+          'data-theme',
+          localStorage.getItem('babystack-theme') || 'light',
+        )
+      } catch (e) {}
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <div class="bar">
+        <a class="brand" href="./index.html" aria-label="babystack home">
+          <span class="logo-tile" aria-hidden="true"></span>
+          <span class="wordmark">babystack</span>
+        </a>
+        <span class="badge badge-prealpha">pre-alpha</span>
+        <div class="spacer"></div>
+        <nav class="nav-links">
+          <a class="hide-sm" href="./why.html">Why</a>
+          <a class="hide-sm" href="./usage.html">Usage</a>
+          <a class="hide-sm" href="./docs.html">Docs</a>
+          <a class="hide-sm" href="./roadmap.html">Roadmap</a>
+          <a class="hide-sm" aria-current="page" href="./release.html">Release</a>
+          <button
+            class="btn btn-icon"
+            type="button"
+            id="theme-toggle"
+            aria-label="Switch color theme"
+            title="Switch light / dark"
+          >
+            <svg
+              class="icon-moon"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <path
+                d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"
+                fill="currentColor"
+                stroke="none"
+              />
+            </svg>
+            <svg
+              class="icon-sun"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="4.2" fill="currentColor" stroke="none" />
+              <g stroke="currentColor">
+                <line x1="12" y1="2.5" x2="12" y2="5" />
+                <line x1="12" y1="19" x2="12" y2="21.5" />
+                <line x1="2.5" y1="12" x2="5" y2="12" />
+                <line x1="19" y1="12" x2="21.5" y2="12" />
+                <line x1="5.2" y1="5.2" x2="7" y2="7" />
+                <line x1="17" y1="17" x2="18.8" y2="18.8" />
+                <line x1="18.8" y1="5.2" x2="17" y2="7" />
+                <line x1="7" y1="17" x2="5.2" y2="18.8" />
+              </g>
+            </svg>
+          </button>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-secondary btn-sm"
+            href="https://github.com/babystack/babystack"
+            >GitHub ↗</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <!-- ── hero ──────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> release · pre-alpha</div>
+          <h1 style="margin-top: 16px">v0.1.0-alpha.1</h1>
+          <p class="lede" style="max-width: 60ch">
+            <strong style="color: var(--text)">Phase 0 complete</strong> — the MySQL + Vitest wedge
+            and the <code class="chip chip-soft">baby</code> CLI, proven end-to-end against real
+            MySQL.
+          </p>
+          <p class="note" style="max-width: 68ch; margin-bottom: 26px">
+            🗓 July 16, 2026 · pre-release · Apache-2.0 · not yet on npm
+          </p>
+          <div class="cta">
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn btn-primary btn-lg"
+              href="https://github.com/babystack/babystack/releases/tag/v0.1.0-alpha.1"
+              >View on GitHub ↗</a
+            >
+            <a class="btn btn-secondary btn-lg" href="./usage.html">Get started</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── what shipped ──────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 01 · what shipped</div>
+          <h2 style="margin-top: 14px">The whole wedge, end to end.</h2>
+          <p class="lede">
+            A pure core with pluggable seams, real-engine adapters that <em>never emulate</em>, and
+            two delivery vehicles: the Vitest integration and the
+            <code class="chip chip-soft">baby</code>
+            CLI.
+          </p>
+          <div class="grid grid-2">
+            <div class="card">
+              <div class="card-head">
+                <span class="badge badge-after">engine</span>
+                <span class="who">the test wedge</span>
+              </div>
+              <ul class="checks">
+                <li>
+                  <span class="ok">✓</span> One real
+                  <code class="chip chip-beige">mysql:8.4</code> per run; a seeded
+                  <code class="chip chip-beige">mysqldump</code> baseline built once
+                </li>
+                <li>
+                  <span class="ok">✓</span> A fresh, isolated database per Vitest worker — proven
+                  under real parallelism
+                </li>
+                <li>
+                  <span class="ok">✓</span> Zero test-code changes; your app reads
+                  <code class="chip chip-soft">DATABASE_URL</code> like production
+                </li>
+                <li><span class="ok">✓</span> A real Express + Drizzle example app, green in CI</li>
+              </ul>
+            </div>
+            <div class="card">
+              <div class="card-head">
+                <span class="badge badge-after">cli</span>
+                <span class="who">the agent surface</span>
+              </div>
+              <ul class="checks">
+                <li>
+                  <span class="ok">✓</span> Five commands — doctor · wake · home · reset · sleep —
+                  all speak <code class="chip chip-beige">--json</code>
+                </li>
+                <li>
+                  <span class="ok">✓</span> A persistent seeded MySQL, rediscovered across commands
+                  by label
+                </li>
+                <li>
+                  <span class="ok">✓</span> <code class="chip chip-beige">baby reset</code> —
+                  pristine baseline in place, same URL (the undo loop)
+                </li>
+                <li>
+                  <span class="ok">✓</span> Password recovered from
+                  <code class="chip chip-beige">docker inspect</code>, never written to a file
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="pkgs">
+            <div class="pkg">
+              <div class="name">@babystack/core</div>
+              <div class="desc">
+                Config, lifecycle, the EngineAdapter / Lease / Pool seams + injected Clock /
+                CommandRunner ports. Pure — no I/O.
+              </div>
+            </div>
+            <div class="pkg">
+              <div class="name">@babystack/docker</div>
+              <div class="desc">
+                The generic Docker muscle: provision, authenticated wait-ready, idempotent dispose,
+                label-scoped GC.
+              </div>
+            </div>
+            <div class="pkg">
+              <div class="name">@babystack/mysql</div>
+              <div class="desc">
+                Real <code class="chip chip-beige">mysql:8.4</code> — a seeded mysqldump baseline,
+                then a fresh leased database per worker.
+              </div>
+            </div>
+            <div class="pkg">
+              <div class="name">@babystack/vitest</div>
+              <div class="desc">
+                globalSetup + setupFiles. Zero test-code changes; a private database per worker, in
+                parallel.
+              </div>
+            </div>
+            <div class="pkg">
+              <div class="name">@babystack/cli</div>
+              <div class="desc">
+                The <code class="chip chip-beige">baby</code> binary (operator + agent surface):
+                doctor · wake · home · reset · sleep, all
+                <code class="chip chip-beige">--json</code>.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── safety ────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 02 · safety — the trust cliff</div>
+          <h2 style="margin-top: 14px">A cache that serves stale seed is worse than no cache.</h2>
+          <p class="lede">
+            Correctness before speed. Phase 0 ships the guarantees a fresh-database tool has to earn
+            before anyone can trust it.
+          </p>
+          <div class="grid grid-3">
+            <div class="card">
+              <div class="klabel">integrity</div>
+              <h3>Checksum-verified baselines</h3>
+              <p>
+                The dump's sha256 is verified before every load, and written atomically — a torn or
+                corrupt cache fails loud, never loads silently-wrong seed state.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">no leaks</div>
+              <h3>Secret redaction</h3>
+              <p>
+                Credentials, key=value secrets, AWS keys, and the minted password are scrubbed from
+                every adapter error before it can reach a log.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">boundary</div>
+              <h3>Credential boundary</h3>
+              <p>
+                Tests and agents only ever get disposable connection URLs. The minted password lives
+                only in Docker — recovered via <code class="chip chip-beige">docker inspect</code>,
+                never written to a file.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── honest speed ──────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 03 · honest speed</div>
+          <h2 style="margin-top: 14px">No "instant" claims.</h2>
+          <div class="callout" style="margin-top: 24px">
+            <p>
+              MySQL has no in-server template — so babystack never markets a
+              single-digit-millisecond clone. Speed comes from per-worker databases + baseline reuse
+              (a pre-warmed pool + async reset land next). The first honest measure:
+              <strong>~7s cold, end-to-end</strong>.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── try it ────────────────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 04 · try it</div>
+          <h2 style="margin-top: 14px">Run it from source today.</h2>
+          <p class="lede">
+            Not on npm yet. With Docker running, the runnable proof is a real Express + Drizzle +
+            MySQL app whose tests hit fresh, seeded, isolated real MySQL — with zero babystack
+            imports.
+          </p>
+          <pre class="code big"><span class="c"># clone + install (pnpm)</span>
+<span class="k">git</span> clone https://github.com/babystack/babystack && <span class="k">cd</span> babystack
+<span class="k">pnpm</span> install
+
+<span class="c"># with Docker running — the example app's suite against real MySQL:</span>
+<span class="k">pnpm</span> --filter users-api <span class="s">test</span></pre>
+        </div>
+      </section>
+
+      <!-- ── what's next ───────────────────────────────────────────────────────────── -->
+      <section class="band">
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 05 · what's next</div>
+          <h2 style="margin-top: 14px">After Phase 0.</h2>
+          <div class="grid grid-3">
+            <div class="card">
+              <div class="klabel">0.9</div>
+              <h3>Warm-pool speed</h3>
+              <p>
+                A pre-warmed container pool + async reset — fast lease acquisition, with measured
+                numbers and method (the honest-speed rule).
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">breadth</div>
+              <h3>More engines</h3>
+              <p>
+                Redis, then MinIO/S3, DynamoDB Local, ElasticMQ — the same core lifecycle, each
+                behind the EngineAdapter conformance suite. Pull-driven.
+              </p>
+            </div>
+            <div class="card">
+              <div class="klabel">launch</div>
+              <h3>Publish to npm</h3>
+              <p>
+                The <code class="chip chip-beige">@babystack/*</code> packages, so
+                <code class="chip chip-beige">pnpm add -D @babystack/vitest</code> just works. Held
+                until the wedge is ready to go wide.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── release history ───────────────────────────────────────────────────────── -->
+      <section>
+        <div class="sec">
+          <div class="eyebrow"><span class="sq"></span> 06 · release history</div>
+          <h2 style="margin-top: 14px">Every release, newest first.</h2>
+          <p class="lede">The latest tags — full notes, diffs, and assets live on GitHub.</p>
+          <div class="pkgs">
+            <div class="pkg">
+              <span class="name">
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href="https://github.com/babystack/babystack/releases/tag/v0.1.0-alpha.1"
+                  >v0.1.0-alpha.1</a
+                >
+              </span>
+              <span class="desc">
+                <strong style="color: var(--text)"
+                  >Phase 0 — the MySQL + Vitest wedge + the
+                  <code class="chip chip-beige">baby</code> CLI.</strong
+                >
+                The pure core, real-engine adapters, the Vitest integration, and the CLI (doctor ·
+                wake · home · reset · sleep) — proven end-to-end against real MySQL.
+                <span class="klabel" style="display: block; margin-top: 8px; color: var(--cap)"
+                  >2026-07-16 · pre-release · Apache-2.0</span
+                >
+              </span>
+            </div>
+          </div>
+          <p class="note" style="margin-top: 22px">
+            All tags and full changelogs:
+            <a
+              target="_blank"
+              rel="noopener noreferrer"
+              href="https://github.com/babystack/babystack/releases"
+              >releases on GitHub ↗</a
+            >.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="foot">
+        <div class="foot-brand">
+          <a class="brand" href="./index.html" aria-label="babystack home">
+            <span class="logo-tile" aria-hidden="true"></span>
+            <span class="wordmark" style="font-size: 16px">babystack</span>
+          </a>
+          <p class="foot-blurb">
+            Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable,
+            real backing services for tests and AI agents.
+          </p>
+        </div>
+        <nav class="foot-col" aria-label="Resources">
+          <div class="foot-h">Resources</div>
+          <a href="./docs.html">Docs</a>
+          <a href="./usage.html">Usage</a>
+          <a href="./design.html">How it works</a>
+          <a href="./roadmap.html">Roadmap</a>
+        </nav>
+        <nav class="foot-col" aria-label="Project">
+          <div class="foot-h">Project</div>
+          <a target="_blank" rel="noopener noreferrer" href="https://github.com/babystack/babystack"
+            >Repository</a
+          >
+          <a href="./release.html">Releases</a>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/LICENSE"
+            >License · Apache-2.0</a
+          >
+          <span class="foot-muted">npm — coming with publish</span>
+        </nav>
+        <nav class="foot-col" aria-label="Community">
+          <div class="foot-h">Community</div>
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/discussions"
+            >Discussions</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/CONTRIBUTING.md"
+            >Contributing</a
+          >
+          <a
+            target="_blank"
+            rel="noopener noreferrer"
+            href="https://github.com/babystack/babystack/blob/main/SECURITY.md"
+            >Security</a
+          >
+        </nav>
+      </div>
+      <div class="foot-base">
+        <span>© 2026 Sharvil Kadam</span>
+        <span class="foot-dot">·</span>
+        <span class="foot-tag">A local baby of your production stack.</span>
+      </div>
+    </footer>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
