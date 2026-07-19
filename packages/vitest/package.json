@@ -1,0 +1,71 @@
+{
+  "name": "@babystack/vitest",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "babystack Vitest integration — globalSetup/setupFiles that provision the seeded stack and inject env.",
+  "license": "Apache-2.0",
+  "author": "Sharvil Kadam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babystack/babystack.git",
+    "directory": "packages/vitest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./global-setup": {
+      "import": {
+        "types": "./dist/global-setup.d.ts",
+        "default": "./dist/global-setup.js"
+      }
+    },
+    "./setup": {
+      "import": {
+        "types": "./dist/setup.d.ts",
+        "default": "./dist/setup.js"
+      }
+    }
+  },
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "pnpm run build",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+  },
+  "peerDependencies": {
+    "vitest": ">=2"
+  },
+  "dependencies": {
+    "@babystack/core": "workspace:*",
+    "@babystack/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@babystack/docker": "workspace:*",
+    "@types/node": "catalog:",
+    "mysql2": "^3.11.0",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "homepage": "https://github.com/babystack/babystack/tree/main/packages/vitest#readme",
+  "bugs": {
+    "url": "https://github.com/babystack/babystack/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
