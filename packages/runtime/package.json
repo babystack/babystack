@@ -1,0 +1,60 @@
+{
+  "name": "@babystack/runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "babystack runtime — the shared config→adapter resolver + provision/lease helpers consumed by @babystack/vitest and @babystack/cli.",
+  "license": "Apache-2.0",
+  "author": "Sharvil Kadam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babystack/babystack.git",
+    "directory": "packages/runtime"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepack": "pnpm run build",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@babystack/core": "workspace:*",
+    "@babystack/docker": "workspace:*",
+    "@babystack/mysql": "workspace:*",
+    "tinyglobby": "^0.2.17"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "homepage": "https://github.com/babystack/babystack/tree/main/packages/runtime#readme",
+  "bugs": {
+    "url": "https://github.com/babystack/babystack/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
