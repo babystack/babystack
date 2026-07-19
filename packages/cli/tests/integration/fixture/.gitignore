@@ -1,0 +1,3 @@
+# Test-managed watched input: the integration test creates/edits/removes this to prove that changing a
+# watched seed input triggers a rebuild that serves fresh seed. Never committed.
+widget-name.txt

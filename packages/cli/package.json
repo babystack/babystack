@@ -1,0 +1,65 @@
+{
+  "name": "@babystack/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The `baby` CLI — operator & agent surface for babystack (up, reset, new, create, doctor, env, logs; all --json).",
+  "license": "Apache-2.0",
+  "author": "Sharvil Kadam",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babystack/babystack.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "baby": "bin/baby.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "prepack": "pnpm run build",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@babystack/core": "workspace:*",
+    "@babystack/docker": "workspace:*",
+    "@babystack/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "mysql2": "^3.11.0",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  },
+  "homepage": "https://github.com/babystack/babystack/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/babystack/babystack/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
