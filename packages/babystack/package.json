@@ -1,0 +1,75 @@
+{
+  "name": "babystack",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Real MySQL, fresh every run — a local baby of your production stack. Seeded, disposable, real backing services for tests + AI agents. The flagship: re-exports the API and ships the `baby` CLI.",
+  "keywords": [
+    "testing",
+    "integration-testing",
+    "mysql",
+    "docker",
+    "vitest",
+    "fixtures",
+    "database",
+    "ephemeral",
+    "seed",
+    "cli",
+    "ai-agents"
+  ],
+  "license": "Apache-2.0",
+  "author": "Sharvil Kadam",
+  "homepage": "https://github.com/babystack/babystack#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/babystack/babystack.git",
+    "directory": "packages/babystack"
+  },
+  "bugs": {
+    "url": "https://github.com/babystack/babystack/issues"
+  },
+  "bin": {
+    "baby": "bin/baby.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepack": "pnpm run build",
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@babystack/cli": "workspace:*",
+    "@babystack/core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}
