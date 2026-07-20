@@ -2,7 +2,7 @@
   "name": "@babystack/cli",
   "version": "0.1.0",
   "type": "module",
-  "description": "The `baby` CLI — operator & agent surface for babystack (up, reset, new, create, doctor, env, logs; all --json).",
+  "description": "The `baby` CLI — operator & agent surface for babystack (doctor, wake, home, reset, sleep; aliases up/env/down; all --json).",
   "license": "Apache-2.0",
   "author": "Sharvil Kadam",
   "repository": {

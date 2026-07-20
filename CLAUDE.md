@@ -62,8 +62,9 @@ Build by these (full version + updates in the handbook):
   sibling adapter, and no raw I/O (enforced by `.dependency-cruiser.cjs` — including a `core-no-node-io`
   rule — and an ESLint rule banning `Date.now`/`Math.random` in core). Adapters depend on core, never the
   reverse.
-- **Every adapter passes the shared conformance suite** for its seam. A new engine isn't "done" until it
-  passes `EngineAdapter` conformance.
+- **Every adapter passes the shared conformance suite** for its seam — a new engine isn't "done" until it
+  passes `EngineAdapter` conformance. (The shared suite is authored **with engine #2**; until then the MySQL
+  adapter's invariants are covered by its own tests.)
 - **Honest speed — a hard rule.** Never claim, market, or benchmark "instant" or "single-digit-millisecond
   clone" for MySQL (it's false: no in-server template; ~1–5s `mysqld` boot; no reflink on macOS Docker).
   Speed comes from **pre-warmed pools + per-worker DBs + async reset**. Publish measured numbers + method.

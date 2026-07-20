@@ -1,3 +1,4 @@
+import { isMainThread } from 'node:worker_threads'
 import { BabystackError } from '@babystack/core'
 import { leaseEnv } from '@babystack/runtime'
 import { inject } from 'vitest'
@@ -10,9 +11,17 @@ import './provided'
  * `await` blocks the worker until the DB is ready — this file is ESM-only (Vitest loads setupFiles as ESM).
  */
 const { instance, baseline } = inject('babystack')
-// One database per worker, keyed by Vitest's pool id. Fail fast if it's unset rather than defaulting to a
-// shared '1' — under a non-forks pool every worker would key the same database and silently stomp each
-// other (isolation gone). `pool: 'forks'` (required, and Vitest's default) always sets it.
+// Enforce `pool: 'forks'` (required). Under forks, setupFiles run in a child PROCESS's main thread; under
+// 'threads'/'vmThreads' they run in a worker THREAD that SHARES one `process.env` with its siblings —
+// last-write-wins on `DATABASE_URL`, so tests silently hit the wrong worker's database (isolation gone).
+// `VITEST_POOL_ID` is set under threads too, so it alone does NOT catch this — `isMainThread` does.
+if (!isMainThread) {
+  throw new BabystackError(
+    'CONFIG_INVALID',
+    "babystack requires `pool: 'forks'` — the 'threads'/'vmThreads' pools share one process.env across workers, so they'd collide on DATABASE_URL. Set `pool: 'forks'` in vitest.config.",
+  )
+}
+// One database per worker, keyed by Vitest's pool id (always set under forks).
 const key = process.env['VITEST_POOL_ID']
 if (key === undefined) {
   throw new BabystackError(

@@ -18,6 +18,29 @@ describe('redactSecrets', () => {
     expect(redactSecrets('leaked AKIAIOSFODNN7EXAMPLE here')).toBe('leaked *** here')
   })
 
+  it('redacts Bearer tokens (which the `auth` keyword rule misses)', () => {
+    expect(redactSecrets('Authorization: Bearer abc123.DEF-456_ghi failed')).toBe(
+      'Authorization: Bearer *** failed',
+    )
+  })
+
+  it('redacts JSON Web Tokens by their distinctive prefix', () => {
+    expect(
+      redactSecrets('token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dozjgNryP4J3jVmNHl0w5N here'),
+    ).toBe('token *** here')
+  })
+
+  it('redacts provider tokens with a distinctive prefix (GitHub, Slack)', () => {
+    expect(redactSecrets('ghp_abcdefghij1234567890 and xoxb-1234567890-abcdEFGH')).toBe(
+      '*** and ***',
+    )
+  })
+
+  it('does not over-redact ordinary output (checksums, table names, ids)', () => {
+    const benign = 'sha256:deadbeefcafe table `orders` id=42 rows=1000'
+    expect(redactSecrets(benign)).toBe(benign)
+  })
+
   it('redacts known literal secrets passed in', () => {
     expect(redactSecrets('the password is bs_9f3a2c1e0011', ['bs_9f3a2c1e0011'])).toBe(
       'the password is ***',
