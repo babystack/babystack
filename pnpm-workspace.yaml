@@ -9,7 +9,7 @@ packages:
 #   the primary `typescript` is pinned to TS 6.0 — the newest STABLE the type-aware lint stack
 #   supports (typescript-eslint peers `typescript <6.1.0`). The native TS 7 runs as a forward-compat
 #   `--noEmit` gate via the `typescript-next` alias in the root package.json (`typecheck:next`, folded
-#   into `typecheck`). Collapse to TS 7 primary once typescript-eslint supports it — see 99-ROADMAP.
+#   into `typecheck`). Collapse to TS 7 primary once typescript-eslint supports it — see the roadmap.
 #   @types/node stays on 22 to match the Node 20/22 target.
 catalog:
   typescript: ~6.0.3

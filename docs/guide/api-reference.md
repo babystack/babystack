@@ -40,7 +40,7 @@
 | `@babystack/mysql`   | 0.1.0   | Engine adapter — real MySQL           | (transitive)                            |
 | `@babystack/docker`  | 0.1.0   | Generic Docker muscle                 | (transitive)                            |
 
-**Two install paths** (see `07-ARCHITECTURE.md` for why): `@babystack/vitest` (the test wedge — one package,
+**Two install paths:** `@babystack/vitest` (the test wedge — one package,
 pulls the engine transitively) and `babystack` (the `baby` CLI). Everything else is transitive.
 
 ## 2. `babystack` (flagship)
@@ -64,7 +64,8 @@ The pure core (no I/O). Origin of the config API and every shared type.
 | `redactSecrets(text, extra?)`             | fn    | 🔧        | Scrub URL creds / `key=value` / AWS keys / a minted password from a string.                                                                                                                                                                                                                                                                                                                                                                            |
 | **Types**                                 |       |           | `Engine`, `Mode`, `EnvMap`, `ProvisionSpec`, `Instance`, `Baseline`, `Lease`, `SeedSpec`, `EngineAdapter`, `BabystackErrorCode`, `Clock`, `CommandRunner`, `CommandResult`, `CommandOptions`, `Pool`, `Stack`, `StackDeps`, `InvalidationInputs`, and the config types (`BabystackConfig`, `ServiceConfig`, `MysqlService`, `RedisService`, `MinioService`, `DynamoService`, `ElasticmqService`, `LocalstackService`, `BaselineConfig`, `TestPolicy`). |
 
-`EngineAdapter` is the extensibility seam — see `07-ARCHITECTURE.md` §3.
+`EngineAdapter` is the extensibility seam — a new engine (Postgres, Redis, …) implements it; see
+[§13 Engines](#13-engines).
 
 ## 4. `@babystack/vitest`
 
@@ -229,5 +230,4 @@ command.
 | `elasticmq` (SQS)       | ⏳ Typed only  | Roadmap.                                                                  |
 | `localstack` (AWS tail) | ⏳ Typed only  | Roadmap.                                                                  |
 
-Adding an engine: implement `EngineAdapter`, pass the conformance suite, register it — see
-`07-ARCHITECTURE.md` §5–§7.
+Adding an engine: implement `EngineAdapter`, pass the shared conformance suite, and register it.
