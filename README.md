@@ -120,7 +120,8 @@ _② (the Vitest wedge), ③ (`baby wake`/`home`/`sleep`) and ⑤ (the agent `ba
 see the roadmap for what's next (warm-pool speed, more engines)._
 
 Visual walkthroughs live in [`site/`](./site/): **[how you use it](./site/usage.html)** ·
-**[the internals](./site/design.html)**. The written version is [docs/guide/getting-started.md](./docs/guide/getting-started.md).
+**[the internals](./site/design.html)**. The written versions: [getting-started](./docs/guide/getting-started.md) and the full
+[architecture](./docs/guide/architecture.md) (the two axes + the `EngineAdapter` seam).
 
 ## How it works
 
