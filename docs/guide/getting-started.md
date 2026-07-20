@@ -266,7 +266,7 @@ never touched.
 > **Shipped in sub-phase 0.7.** `doctor` · `wake` · `home` · `reset` · `sleep` all work today. The Vitest
 > wiring above needs no CLI — this is the **operator + agent** surface. All commands take `--json` (stable
 > shape for CI/agents). The full agent loop is documented in
-> [`packages/cli/README.md`](../packages/cli/README.md).
+> [`packages/cli/README.md`](../../packages/cli/README.md).
 
 The container `baby wake` starts is **detached, so it persists** after the command exits; a later `home` /
 `reset` / `sleep` (a separate process) rediscovers it by a per-project label and recovers the minted password
@@ -329,7 +329,7 @@ baby sleep                # done: dispose the container
 ```
 
 Non-zero exit with `nothing is awake — run \`baby wake\` first` if no container is up. The end-to-end agent
-loop (with a worked example) lives in [`packages/cli/README.md`](../packages/cli/README.md).
+loop (with a worked example) lives in [`packages/cli/README.md`](../../packages/cli/README.md).
 
 ### `baby sleep` (alias `down`)
 

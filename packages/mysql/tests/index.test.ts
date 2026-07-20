@@ -215,6 +215,29 @@ describe('MysqlAdapter — error mapping', () => {
     })
   })
 
+  it('drops the half-created database when the baseline load fails (leaves nothing for ensureLease to serve unseeded)', async () => {
+    const { runner, adapter } = make(tmp('loadfail-drop'), (argv) =>
+      argv.includes('-i') && argv.includes('babystack_db_w1')
+        ? { code: 1, stdout: '', stderr: 'load boom' }
+        : handler(argv),
+    )
+    const baseline = await adapter.buildBaseline(provisioned, { commands: [], env: {} })
+    runner.calls.length = 0 // focus on openLease
+    await expect(adapter.openLease(provisioned, baseline, '1')).rejects.toMatchObject({
+      code: 'LEASE_FAILED',
+    })
+    // A STANDALONE `DROP ... w1` (no CREATE) must run after the failed load — otherwise the empty/half-loaded
+    // DB survives and the non-destructive `ensureLease` would serve it UNSEEDED (the trust cliff, CLI path).
+    const cleanupDrop = runner.calls.some((c) => {
+      const sql = lastArg(c.argv)
+      return (
+        sql.includes('DROP DATABASE IF EXISTS `babystack_db_w1`') &&
+        !sql.includes('CREATE DATABASE')
+      )
+    })
+    expect(cleanupDrop).toBe(true)
+  })
+
   it('throws PROVISION_FAILED when the instance is missing its minted password', async () => {
     await expect(make().adapter.waitReady({ ...provisioned, meta: {} })).rejects.toMatchObject({
       code: 'PROVISION_FAILED',

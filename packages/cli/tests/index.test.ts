@@ -67,16 +67,18 @@ describe('readsEnvTooEarly (doctor heuristic)', () => {
 })
 
 describe('doctorChecks', () => {
-  it('runs all four preflight checks in display order, and node passes on a supported runtime', async () => {
+  it('runs all preflight checks in display order, and node passes on a supported runtime', async () => {
     // Inject the Docker probe so the unit test never shells out to `docker info` (deterministic + fast).
     const checks = await doctorChecks(async () => true)
-    expect(checks.map((c) => c.name)).toEqual(['node', 'docker', 'config', 'env-read'])
+    expect(checks.map((c) => c.name)).toEqual(['node', 'docker', 'config', 'cache', 'env-read'])
     // Node is the one check independent of the environment (we run the suite on a supported major).
     expect(checks.find((c) => c.name === 'node')?.ok).toBe(true)
     // Docker check reflects the injected probe.
     expect(checks.find((c) => c.name === 'docker')?.ok).toBe(true)
-    // env-read is a warning, never a hard failure.
+    // env-read and cache are warnings, never hard failures.
     const envRead = checks.find((c) => c.name === 'env-read')
     if (envRead && !envRead.ok) expect(envRead.warn).toBe(true)
+    const cache = checks.find((c) => c.name === 'cache')
+    if (cache && !cache.ok) expect(cache.warn).toBe(true)
   })
 })

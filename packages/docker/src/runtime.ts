@@ -43,6 +43,10 @@ export class NodeCommandRunner implements CommandRunner {
       child.stderr?.on('data', (chunk: string) => (stderr += chunk))
       child.on('error', reject) // e.g. ENOENT when the binary isn't found on the given PATH
       child.on('close', (code) => resolve({ code: code ?? -1, stdout, stderr }))
+      // Swallow EPIPE: if the child exits before consuming all of stdin (e.g. `mysql` aborts on a bad
+      // dump), writing the rest raises 'error' on the stream — which, unhandled, crashes the process as an
+      // uncaughtException. The real failure still surfaces via the non-zero exit code in 'close'.
+      child.stdin?.on('error', () => {})
       child.stdin?.end(options?.stdin ?? undefined)
     })
   }

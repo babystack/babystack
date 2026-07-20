@@ -333,7 +333,14 @@ export async function wake(
   await ensureDockerAvailable()
 
   const wantHash = await resolveInvalidation(service, configPath)
-  const force = options.rebuild === true || cacheDisabled()
+  // Cross-run baseline reuse is only SAFE when we can detect input changes. If the service runs `build`
+  // commands but declares NO `invalidateWhenChanged` globs, the hash can't see an edited migration/seed —
+  // reusing would risk serving stale seed (the trust cliff). So force a rebuild instead; declaring the
+  // globs re-enables fast reuse. (A service with no build commands has nothing to go stale.)
+  const buildCmds = service.baseline?.build ?? []
+  const watched = service.baseline?.invalidateWhenChanged ?? []
+  const reuseUnsafe = buildCmds.length > 0 && watched.length === 0
+  const force = options.rebuild === true || cacheDisabled() || reuseUnsafe
 
   // Build a fresh baseline against `instance`, stamp it with the current hash, and persist the sidecar.
   const buildAndRecord = async (instance: Instance): Promise<Baseline> => {
@@ -378,19 +385,24 @@ export async function wake(
   }
 }
 
-/** Discover the running container for this project + its baseline (for `baby home`). Undefined if asleep. */
+/** Discover the running container for this project + its baseline (for `baby home`/`reset`). Undefined if
+ * asleep. `stale` = the seed inputs changed since this baseline was built with `baby wake`. */
 export async function findRunning(
   config?: BabystackConfig,
   configPath?: string,
-): Promise<{ instance: Instance; baseline: Baseline } | undefined> {
+): Promise<{ instance: Instance; baseline: Baseline; stale: boolean } | undefined> {
   const cfg = config ?? (await loadConfig(configPath))
-  const { adapter, name, cacheDir } = sessionAdapter(cfg, projectId(configPath))
+  const { adapter, name, service, cacheDir } = sessionAdapter(cfg, projectId(configPath))
   await ensureDockerAvailable() // so a Docker-down surfaces as DOCKER_UNAVAILABLE, not "nothing is awake"
   const instance = await adapter.discover(name)
   if (instance === undefined) return undefined
   const baseline = await readBaselineSidecar(cacheDir, name)
   if (baseline === undefined) return undefined
-  return { instance, baseline }
+  // `home`/`reset` do NOT rebuild (only `wake` does), so a changed migration/seed can't be fixed here — but
+  // it MUST be signalled, or the agent loop keeps serving stale seed silently (the trust cliff). Compare the
+  // current inputs' hash to the one this baseline was stamped with; the CLI surfaces `stale` as a warning.
+  const stale = baseline.invalidation !== (await resolveInvalidation(service, configPath))
+  return { instance, baseline, stale }
 }
 
 /** `baby sleep`: dispose this project's running container (if any). Returns how many were disposed. */

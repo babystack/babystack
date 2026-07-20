@@ -128,15 +128,14 @@ export class MysqlAdapter implements EngineAdapter {
     // probe can pass, then the real server restarts and briefly refuses — the `ERROR 2002` init race. TCP
     // is refused until the real, networked server is truly up, so this gate can't fire early.
     const password = rootPassword(instance)
-    await this.docker.waitReady(instance.id, [
-      'mysql',
-      '-h',
-      '127.0.0.1',
-      '-uroot',
-      `-p${password}`,
-      '-e',
-      'SELECT 1',
-    ])
+    // Budget 120s, not the 30s default: a COLD `mysqld` (first boot, data-dir init) on a slow/loaded CI
+    // runner can take well over 30s to accept TCP connections, and a premature WAIT_READY_TIMEOUT would
+    // fail the whole run even though the engine was coming up fine.
+    await this.docker.waitReady(
+      instance.id,
+      ['mysql', '-h', '127.0.0.1', '-uroot', `-p${password}`, '-e', 'SELECT 1'],
+      { timeoutMs: 120_000 },
+    )
   }
 
   async buildBaseline(instance: Instance, spec: SeedSpec): Promise<Baseline> {
@@ -237,24 +236,34 @@ export class MysqlAdapter implements EngineAdapter {
     )
     // Load the cached baseline dump — but VERIFY its integrity first. A corrupt or truncated cache must
     // fail loud (BASELINE_CORRUPT), never load silently-wrong seed state into a worker (the trust cliff).
-    const dump = await readFile(baseline.ref, 'utf8')
-    const actual = `sha256:${sha256(dump)}`
-    if (actual !== baseline.checksum) {
-      throw new BabystackError(
-        'BASELINE_CORRUPT',
-        `baseline at ${baseline.ref} failed its integrity check (expected ${baseline.checksum}, got ${actual}) — the cache is corrupt or truncated; rebuild it.`,
+    // If anything fails after the CREATE, DROP the just-created database before rethrowing: a half-loaded
+    // or empty DB left behind would be seen as "exists" by the non-destructive `ensureLease` and served
+    // UNSEEDED (`baby home` after a failed `reset`) — the same trust-cliff, on the CLI path.
+    try {
+      const dump = await readFile(baseline.ref, 'utf8')
+      const actual = `sha256:${sha256(dump)}`
+      if (actual !== baseline.checksum) {
+        throw new BabystackError(
+          'BASELINE_CORRUPT',
+          `baseline at ${baseline.ref} failed its integrity check (expected ${baseline.checksum}, got ${actual}) — the cache is corrupt or truncated; rebuild it.`,
+        )
+      }
+      const load = await this.docker.exec(
+        instance.id,
+        ['mysql', '-uroot', `-p${password}`, database],
+        dump,
       )
-    }
-    const load = await this.docker.exec(
-      instance.id,
-      ['mysql', '-uroot', `-p${password}`, database],
-      dump,
-    )
-    if (load.code !== 0) {
-      throw new BabystackError(
-        'LEASE_FAILED',
-        redactSecrets(`baseline load failed for ${database}: ${load.stderr.trim()}`, [password]),
+      if (load.code !== 0) {
+        throw new BabystackError(
+          'LEASE_FAILED',
+          redactSecrets(`baseline load failed for ${database}: ${load.stderr.trim()}`, [password]),
+        )
+      }
+    } catch (err) {
+      await this.sql(instance, `DROP DATABASE IF EXISTS \`${database}\``, 'LEASE_FAILED').catch(
+        () => {},
       )
+      throw err
     }
     return {
       instance,
