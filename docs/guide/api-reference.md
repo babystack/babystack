@@ -30,15 +30,15 @@
 
 ## 1. Packages at a glance
 
-| Package              | Version | Role                                  | Install (typical)                    |
-| -------------------- | ------- | ------------------------------------- | ------------------------------------ |
-| `babystack`          | 0.1.0   | Flagship — API re-export + `baby` bin | `npm i -D babystack` (CLI/agent)     |
-| `@babystack/core`    | 0.1.0   | Pure core — config, seam, lifecycle   | (transitive)                         |
-| `@babystack/vitest`  | 0.1.0   | Consumer — Vitest hooks               | `npm i -D @babystack/vitest` (tests) |
-| `@babystack/cli`     | 0.1.0   | Consumer — the `baby` command impl    | (via `babystack`)                    |
-| `@babystack/runtime` | 0.1.0   | Shared session/lifecycle resolver     | (transitive)                         |
-| `@babystack/mysql`   | 0.1.0   | Engine adapter — real MySQL           | (transitive)                         |
-| `@babystack/docker`  | 0.1.0   | Generic Docker muscle                 | (transitive)                         |
+| Package              | Version | Role                                  | Install (typical)                       |
+| -------------------- | ------- | ------------------------------------- | --------------------------------------- |
+| `babystack`          | 0.1.0   | Flagship — API re-export + `baby` bin | `pnpm add -D babystack` (CLI/agent)     |
+| `@babystack/core`    | 0.1.0   | Pure core — config, seam, lifecycle   | (transitive)                            |
+| `@babystack/vitest`  | 0.1.0   | Consumer — Vitest hooks               | `pnpm add -D @babystack/vitest` (tests) |
+| `@babystack/cli`     | 0.1.0   | Consumer — the `baby` command impl    | (via `babystack`)                       |
+| `@babystack/runtime` | 0.1.0   | Shared session/lifecycle resolver     | (transitive)                            |
+| `@babystack/mysql`   | 0.1.0   | Engine adapter — real MySQL           | (transitive)                            |
+| `@babystack/docker`  | 0.1.0   | Generic Docker muscle                 | (transitive)                            |
 
 **Two install paths** (see `07-ARCHITECTURE.md` for why): `@babystack/vitest` (the test wedge — one package,
 pulls the engine transitively) and `babystack` (the `baby` CLI). Everything else is transitive.

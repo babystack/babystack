@@ -7,7 +7,7 @@
  * `@babystack/runtime` for programmatic use (the same helpers the `baby` CLI uses).
  *
  * It also re-exports `defineConfig` (and the config types) from `@babystack/core`, so the Vitest wedge is a
- * SINGLE install: `npm i -D @babystack/vitest`, then `import { defineConfig } from '@babystack/vitest'` in
+ * SINGLE install: `pnpm add -D @babystack/vitest`, then `import { defineConfig } from '@babystack/vitest'` in
  * your `babystack.config.ts` — no separate `@babystack/core`/`@babystack/mysql` needed.
  */
 export { defineConfig } from '@babystack/core'

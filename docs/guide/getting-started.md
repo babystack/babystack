@@ -207,7 +207,7 @@ export const pool = () => (_pool ??= mysql.createPool(process.env.DATABASE_URL!)
 ```
 
 If you get it wrong today, you'll see connection errors (or a hit against the wrong DB). **`baby doctor`
-scans `src/` for this and names the likely offending module** (a warning, shipped in 0.7). A _runtime_
+scans `src/` for this and names the likely offending module** (a fail-fast warning). A _runtime_
 `ENV_READ_TOO_EARLY` diagnostic emitted at connect time (to explain the flake in the moment) is still
 deferred — the error code is reserved but not yet thrown.
 

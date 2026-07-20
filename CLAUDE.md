@@ -69,7 +69,7 @@ Build by these (full version + updates in the handbook):
   Speed comes from **pre-warmed pools + per-worker DBs + async reset**. Publish measured numbers + method.
 - **Credential boundary.** Tests and agents only ever receive disposable connection URLs — never real
   dev/prod source credentials. Any future prod-import path masks by default and refuses unsafe imports.
-- **CLI binary is `baby`** (package `@babystack/cli`): shipped in 0.7 — `baby doctor|wake|home|reset|sleep`
+- **CLI binary is `baby`** (package `@babystack/cli`): `baby doctor|wake|home|reset|sleep`
   (aliases `up`→wake, `env`→home, `down`→sleep), all `--json`. (`new`/`create`/`logs` are deferred, not yet
   built.) Config file: `babystack.config.ts`.
 - **Two wedges, one engine:** `@babystack/vitest` (ships first) and `@babystack/mcp` (local agent data

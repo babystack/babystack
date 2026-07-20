@@ -22,7 +22,7 @@ export default defineConfig({
 ```
 
 ```bash
-npm i -D @babystack/vitest   # one package — pulls the engine (core + mysql + docker) transitively
+pnpm add -D @babystack/vitest   # one package — pulls the engine (core + mysql + docker) transitively
 ```
 
 Your `babystack.config.ts` imports `defineConfig` from `@babystack/vitest` (re-exported here, so this is the

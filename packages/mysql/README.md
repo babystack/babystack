@@ -11,7 +11,7 @@ You normally don't use this directly — `@babystack/vitest` and the `baby` CLI 
 alongside the wedge:
 
 ```bash
-npm i -D @babystack/vitest   # one package — @babystack/mysql comes transitively
+pnpm add -D @babystack/vitest   # one package — @babystack/mysql comes transitively
 ```
 
 For setup and the full lifecycle, see the [babystack repository](https://github.com/babystack/babystack).

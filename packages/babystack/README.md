@@ -10,16 +10,17 @@ This is the **flagship package**: it re-exports the public API (`defineConfig` a
 ships the **`baby`** CLI. For the Vitest test wedge you also install the scoped packages below.
 
 > **Pre-alpha.** Today babystack implements exactly one engine — **real MySQL** — delivered through Vitest
-> and the `baby` CLI. Other engines (Redis, S3/MinIO, the AWS tail via LocalStack) are on the roadmap.
+> and the `baby` CLI. Other engines (**Postgres next**, then Redis, S3/MinIO, the AWS tail via LocalStack)
+> are on the roadmap.
 
 ## Install
 
 ```bash
 # the CLI (operator + AI-agent surface):
-npm i -D babystack        # gives you the `baby` command
+pnpm add -D babystack     # gives you the `baby` command
 
 # the Vitest wedge (fresh, seeded, isolated real MySQL for your tests):
-npm i -D @babystack/vitest        # one package — pulls the engine transitively
+pnpm add -D @babystack/vitest     # one package — pulls the engine transitively
 ```
 
 ## The `baby` CLI

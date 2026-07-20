@@ -28,6 +28,7 @@ mocks, no lifecycle code in your tests._
 - [The pitch](#the-pitch)
 - [Before / after](#before--after)
 - [Quickstart](#quickstart)
+- [The pipeline — how you use it](#the-pipeline--how-you-use-it)
 - [How it works](#how-it-works)
 - [Why not just Testcontainers or Docker Compose?](#why-not-just-testcontainers-or-docker-compose)
 - [On speed (the honest version)](#on-speed-the-honest-version)
@@ -76,7 +77,7 @@ export default defineConfig({
     db: {
       engine: 'mysql',
       image: 'mysql:8.4',
-      baseline: { build: ['pnpm db:migrate', 'pnpm db:seed:test'] },
+      baseline: { build: ['pnpm db:migrate', 'pnpm db:seed'] },
     },
     // Redis, S3 (MinIO), and the AWS slice (LocalStack) land as the tool grows — see the roadmap.
     // (Where this is going: cache: { engine: 'redis' }, files: { engine: 'minio', buckets: ['uploads'] },
@@ -93,7 +94,7 @@ test('creates a user', async () => {
 })
 ```
 
-A `baby` CLI (operator & **agent** surface, all `--json`) shipped in 0.7: **`baby doctor`** (preflight),
+A `baby` CLI (operator & **agent** surface, all `--json`) is included: **`baby doctor`** (preflight),
 **`baby wake`** (provision + seed a real MySQL, left running), **`baby home`** (`eval "$(baby home)"` → a
 `DATABASE_URL`), **`baby reset`** (reload a pristine DB with no re-provision — the agent's undo), **`baby sleep`**
 (dispose) — so a coding agent gets a real, disposable backend across a session and can wipe it between
@@ -126,7 +127,7 @@ Visual walkthroughs live in [`site/`](./site/): **[how you use it](./site/usage.
 ```
 vitest globalSetup
   → read babystack.config.ts
-  → provision the real engine in Docker (MySQL first; Redis/S3/AWS-via-LocalStack later)
+  → provision the real engine in Docker (MySQL first, Postgres next; Redis/S3/AWS-via-LocalStack later)
   → build the seeded baseline once (migrate + seed → mysqldump)
   → hand each Vitest worker its own fresh database (one mysqld, a DB per VITEST_POOL_ID); inject DATABASE_URL
 your tests run against the real, seeded DB (in parallel, isolated)
@@ -179,7 +180,7 @@ persistent seeded MySQL, rediscovers it across separate commands by label, and `
 pristine DB with no container re-provision — the agent's undo loop. Cache invalidation hashes your
 config/migrations/seed, so a changed input rebuilds rather than serving stale seed (the trust cliff).
 **Next: warm-pool speed.** Build order: MySQL + Vitest (flawless) → the `baby` CLI + agent mode
-(**CLI-first**, MCP optional) → warm-pool speed → multi-engine breadth (Redis, MinIO, DynamoDB Local,
+(**CLI-first**, MCP optional) → warm-pool speed → multi-engine breadth (**Postgres first**, then Redis, MinIO, DynamoDB Local,
 ElasticMQ, LocalStack). See [how you'll use it](./docs/guide/getting-started.md) and the
 [roadmap](./docs/ROADMAP.md).
 
@@ -187,6 +188,7 @@ ElasticMQ, LocalStack). See [how you'll use it](./docs/guide/getting-started.md)
 
 | Package              | What it is                                                                                                                                                                                                 |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `babystack`          | **Flagship** — re-exports the public API (`defineConfig` + config types) and ships the `baby` bin. Install for the CLI / agent surface.                                                                    |
 | `@babystack/core`    | Config, lifecycle, the `EngineAdapter` seam + `Lease`/`Pool`, injected `Clock`/`CommandRunner` ports, invalidation, env injection. Pure core (no I/O).                                                     |
 | `@babystack/docker`  | Generic Docker muscle (provision · authenticated `waitReady` · idempotent dispose · label-scoped GC) + the `NodeCommandRunner`/`SystemClock` runtime ports. Engine-agnostic; the engine adapters drive it. |
 | `@babystack/mysql`   | Real-MySQL engine adapter (provision, build baseline, per-worker leased databases).                                                                                                                        |

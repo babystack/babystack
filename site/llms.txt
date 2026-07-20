@@ -69,4 +69,5 @@ end-to-end. Licensed Apache-2.0.
 
 Pre-alpha. Implemented and proven end-to-end: the real-MySQL engine, the Vitest wedge, the `baby` CLI +
 agent reset loop, and conservative cache invalidation. Next: warm-pool speed, then multi-engine breadth
-(Redis, MinIO=S3, DynamoDB Local, ElasticMQ=SQS, and the AWS tail via LocalStack).
+Postgres first (a second SQL engine), then Redis, MinIO=S3, the AWS tail via LocalStack, DynamoDB Local,
+and ElasticMQ=SQS.
