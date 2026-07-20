@@ -75,7 +75,9 @@ suite runs against fresh, seeded, isolated real MySQL with **zero babystack impo
 with editor autocomplete), but **those adapters are not built yet** — a non-MySQL service fails fast at
 runtime. The whole-stack examples in the docs are labeled "where this is going," not today's behavior. The
 guiding principle for every future engine is **orchestrate & delegate, never emulate**: run the real engine
-(or drive LocalStack for the AWS tail) — never reimplement a proprietary API.
+(or drive LocalStack for the AWS tail) — never reimplement a proprietary API. The **priority next engine is
+Postgres** — a second SQL engine (not everyone runs MySQL in production), which joins the config union when
+its adapter lands.
 
 ## Planned / exploring
 
@@ -87,8 +89,11 @@ matters to you, [open an issue](https://github.com/babystack/babystack/issues) a
   "instant."
 - **Cross-run baseline reuse on the Vitest path** — today the Vitest path rebuilds the baseline every run
   (always fresh, never stale); reusing it across runs is a speed opt-in.
-- **More engines** — Redis, then MinIO (real S3), then the AWS tail via LocalStack (SNS/SQS/…), then
-  DynamoDB Local / ElasticMQ. Breadth is pull-driven: it grows when there's real demand.
+- **More engines — Postgres first.** A second SQL engine is the top priority (not everyone runs MySQL);
+  Postgres also has `CREATE DATABASE … TEMPLATE`, a server-side clone that enables faster per-worker
+  provisioning than MySQL's dump→reload — so it's the strongest speed story, not a grudging add. After
+  Postgres: Redis, MinIO (real S3), the AWS tail via LocalStack (SNS/SQS/…), then DynamoDB Local /
+  ElasticMQ. Breadth is pull-driven — it grows when there's real demand.
 - **The agent data plane over MCP** — the same seeded, resettable stack exposed to AI coding agents
   (Claude Code, Cursor) through MCP, alongside the `baby` CLI that already serves it.
 - **`baby init`** — auto-detect your migrate/seed commands and scaffold `babystack.config.ts` (today you
