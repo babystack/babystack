@@ -1,0 +1,72 @@
+# babystack
+
+> Real backing services (real MySQL today), fresh every run — a local "baby" of your production
+> stack. Every test run and every AI-agent session gets its own private, seeded, disposable copy of
+> the **real** services your app uses: spun up in Docker, injected as environment variables, thrown
+> away after. Not an emulator, not a mock.
+
+babystack is **config-first**: you describe your backend once in `babystack.config.ts`, and it
+provisions the real engine(s) in Docker, seeds a reusable baseline, and hands each test (or AI agent)
+its own fresh, isolated database over a normal connection string (`DATABASE_URL`) — with **zero
+test-code changes** and no lifecycle code in your tests. Your app talks to a real `mysql:8` server and
+can't tell it's in a test. Pre-alpha; the MySQL + Vitest path and the `baby` CLI / agent loop work
+end-to-end. Licensed Apache-2.0.
+
+## Core ideas
+
+- **Orchestrate & delegate, never emulate.** Run the real engine (MySQL, Redis, MinIO=S3) and manage
+  its lifecycle, or delegate to LocalStack for AWS services — never reimplement a proprietary API. A
+  fake gives false confidence.
+- **Config-first, zero test-code changes.** Tests just read `process.env.DATABASE_URL`, exactly like
+  production. The whole stack is described once in `babystack.config.ts`.
+- **Per-worker isolation.** One `mysqld` container, a fresh database per Vitest worker (keyed by
+  `VITEST_POOL_ID`), each reloaded from a baseline built once — so tests run in parallel against
+  isolated real databases.
+- **Honest speed.** No "instant clone" claims for MySQL (it has no in-server template; `mysqld` takes
+  seconds to boot). Speed comes from per-worker databases + baseline reuse + async reset; any published
+  number is measured, with methodology.
+- **Cache correctness before speed.** Invalidation hashes your config/migrations/seed, so a changed
+  input rebuilds the baseline rather than serving stale seed.
+
+## Install
+
+- **Tests (the first wedge):** `pnpm add -D @babystack/vitest` — one package, pulls the engine
+  transitively. Add three lines to `vitest.config.ts` (`globalSetup: '@babystack/vitest/global-setup'`,
+  `setupFiles: ['@babystack/vitest/setup']`, `pool: 'forks'`) and write a `babystack.config.ts` using
+  `defineConfig` (re-exported from `@babystack/vitest`).
+- **CLI / AI agents:** `pnpm add -D babystack` → the `baby` command: `baby doctor|wake|home|reset|sleep`
+  (all `--json`). `baby reset` reloads a pristine seeded database with no container re-provision — the
+  agent's undo between attempts.
+- **Requires a running Docker engine.** Not yet published to npm (pre-alpha) — until the first release,
+  work from the repo.
+
+## Docs
+
+- [Getting started](https://github.com/babystack/babystack/blob/main/docs/guide/getting-started.md): install, configure, and a complete runnable example.
+- [API reference](https://github.com/babystack/babystack/blob/main/docs/guide/api-reference.md): every package export, the config schema, the `baby` CLI, environment variables, and error codes.
+- [Roadmap](https://github.com/babystack/babystack/blob/main/docs/ROADMAP.md): what works today and what's next.
+- [README](https://github.com/babystack/babystack/blob/main/README.md): the pitch, before/after, and how it works end-to-end.
+
+## Packages
+
+- `babystack`: unscoped flagship — re-exports the API and ships the `baby` bin.
+- `@babystack/core`: pure config + the `EngineAdapter` seam + lifecycle + `Lease`/`Pool` (no I/O).
+- `@babystack/mysql`: the real-MySQL engine adapter (provision, baseline, per-worker leased databases).
+- `@babystack/docker`: generic Docker backend (provision, authenticated wait-ready, dispose, label-scoped GC).
+- `@babystack/runtime`: shared config→adapter resolver + provision/lease helpers.
+- `@babystack/vitest`: Vitest `globalSetup`/`setupFiles` integration (ships first).
+- `@babystack/cli`: the `baby` CLI (operator + AI-agent surface, all `--json`).
+
+## Surfaces (one engine, many consumers)
+
+- `@babystack/vitest` — fresh seeded real services for integration tests. Ships first.
+- The `baby` CLI — operator and AI-agent surface; a seeded real backend across a session with a
+  `reset` undo loop, without ever touching your real dev/prod services.
+- `@babystack/mcp` — a local, resettable, seeded stack for AI coding agents (Claude Code, Cursor) over
+  MCP. Planned.
+
+## Status
+
+Pre-alpha. Implemented and proven end-to-end: the real-MySQL engine, the Vitest wedge, the `baby` CLI +
+agent reset loop, and conservative cache invalidation. Next: warm-pool speed, then multi-engine breadth
+(Redis, MinIO=S3, DynamoDB Local, ElasticMQ=SQS, and the AWS tail via LocalStack).

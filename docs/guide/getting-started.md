@@ -334,7 +334,9 @@ Disposes this project's running container (explicit teardown). Idempotent — a 
 
 ## Continuous integration
 
-The suite runs the same locally and in CI — the difference is only where Docker lives.
+The suite runs the same locally and in CI — the difference is only where Docker lives. **Full guide:
+[Running babystack in CI](./ci.md)** (GitHub Actions + CircleCI, the `localhost`-Docker gotcha, caching,
+and troubleshooting). The essentials:
 
 - **GitHub-hosted Linux runners ship Docker**, so no `services:` block is needed — babystack provisions its
   own container. Run the suite as usual after install/build.
