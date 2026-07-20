@@ -114,6 +114,10 @@ export default defineConfig({
 > Using the `baby` CLI instead of (or alongside) Vitest? Install `babystack` and import `defineConfig`
 > from `'babystack'` — same helper, re-exported from the package you installed.
 
+> Using a different ORM — Prisma, Sequelize, TypeORM, Knex, Kysely — or **no ORM at all** (raw `mysql2`)?
+> The only thing that changes is the `baseline.build` command; see
+> **[babystack with your ORM (or none)](./orms.md)**.
+
 `defineConfig` is a typed identity helper: your editor gets full autocomplete, and it fails fast at the
 boundary on an empty `services` map or an unknown engine.
 
