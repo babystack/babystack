@@ -10,12 +10,13 @@ packages:
 #   supports (typescript-eslint peers `typescript <6.1.0`). The native TS 7 runs as a forward-compat
 #   `--noEmit` gate via the `typescript-next` alias in the root package.json (`typecheck:next`, folded
 #   into `typecheck`). Collapse to TS 7 primary once typescript-eslint supports it — see the roadmap.
-#   @types/node stays on 22 to match the Node 20/22 target.
+#   @types/node stays on 22 to match the Node 22 build target (engines: >=22; Node 20 is EOL).
 catalog:
   typescript: ~6.0.3
   tsup: ^8.5.1
   vite: ^7.3.6
   vitest: ^4.1.10
+  '@vitest/coverage-v8': ^4.1.10
   '@types/node': ^22.10.5
   eslint: ^10.7.0
   '@eslint/js': ^10.0.1

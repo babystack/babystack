@@ -119,11 +119,22 @@ async function homeCommand(json: boolean): Promise<RunResult> {
   // NON-DESTRUCTIVE: create + seed the agent DB only if it doesn't exist yet; otherwise just return its
   // URL. The DB name is stable, so re-running `home` is safe (it never wipes work) — only `reset` wipes.
   const env = await ensureEnv(running.instance, running.baseline, AGENT_KEY)
-  if (json) return { code: 0, output: asJsonText({ ok: true, env }) }
+  // `home` can't rebuild (only `wake` does), but if the seed inputs changed it MUST say so — else the agent
+  // loop keeps consuming stale seed silently (the trust cliff).
+  const warn = running.stale
+    ? 'babystack: seed inputs changed since `baby wake` — this URL may serve STALE seed; run `baby wake` to refresh.'
+    : undefined
+  if (json) {
+    return {
+      code: 0,
+      output: asJsonText({ ok: true, env, ...(warn ? { stale: true, warning: warn } : {}) }),
+    }
+  }
   const exports = Object.entries(env)
     .map(([key, value]) => `export ${key}=${shellQuote(value)}`)
     .join('\n')
-  return { code: 0, output: `${exports}\n` }
+  // A leading `#` line is inert under `eval "$(baby home)"` yet visible when run directly.
+  return { code: 0, output: `${warn ? `# ${warn}\n` : ''}${exports}\n` }
 }
 
 async function resetCommand(json: boolean): Promise<RunResult> {
@@ -132,8 +143,24 @@ async function resetCommand(json: boolean): Promise<RunResult> {
   // Re-lease the SAME key: drop + recreate + reload the baseline → pristine, with no container re-provision.
   // The connection URL is unchanged, so an agent can reset between attempts and keep using its DATABASE_URL.
   await leaseEnv(running.instance, running.baseline, AGENT_KEY)
-  if (json) return { code: 0, output: asJsonText({ ok: true, reset: true }) }
-  return { code: 0, output: 'baby: reset — the database is back to the pristine baseline.\n' }
+  // Reset reloads the CURRENT baseline — which is stale if inputs changed since `baby wake`. Say so.
+  const warn = running.stale
+    ? 'seed inputs changed since `baby wake` — reset restored the OLD baseline; run `baby wake` to rebuild.'
+    : undefined
+  if (json) {
+    return {
+      code: 0,
+      output: asJsonText({
+        ok: true,
+        reset: true,
+        ...(warn ? { stale: true, warning: warn } : {}),
+      }),
+    }
+  }
+  return {
+    code: 0,
+    output: `${warn ? `baby: ⚠ ${warn}\n` : ''}baby: reset — the database is back to the pristine baseline.\n`,
+  }
 }
 
 async function sleepCommand(json: boolean): Promise<RunResult> {
@@ -181,6 +208,7 @@ export async function doctorChecks(
       detail: dockerOk ? 'engine reachable' : 'not reachable — is Docker running?',
     },
     await configCheck(),
+    await baselineCacheCheck(),
     await envReadCheck(),
   ]
 }
@@ -207,6 +235,33 @@ async function configCheck(): Promise<Check> {
     }
   } catch (error) {
     return { name: 'config', ok: false, detail: (error as Error).message }
+  }
+}
+
+/** Warn (never fail) when a service runs `build` commands but declares no `invalidateWhenChanged` globs:
+ * `baby wake` then can't detect edited migrations/seeds, so it rebuilds every run rather than risk serving
+ * stale seed (the trust cliff). Declaring the globs re-enables fast, safe cross-run reuse. */
+async function baselineCacheCheck(): Promise<Check> {
+  try {
+    const { service } = resolveMysqlService(await loadConfig())
+    const build = service.baseline?.build ?? []
+    const watched = service.baseline?.invalidateWhenChanged ?? []
+    if (build.length > 0 && watched.length === 0) {
+      return {
+        name: 'cache',
+        ok: false,
+        warn: true,
+        detail:
+          'baseline.build set but invalidateWhenChanged empty — `baby wake` rebuilds every run (cross-run caching off, so it never serves stale seed). Add migration/seed globs to enable fast, safe reuse.',
+      }
+    }
+    return {
+      name: 'cache',
+      ok: true,
+      detail: watched.length > 0 ? `watches ${watched.length} input glob(s)` : 'no build step',
+    }
+  } catch {
+    return { name: 'cache', ok: true, detail: '(see config check above)' }
   }
 }
 

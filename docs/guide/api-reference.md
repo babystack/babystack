@@ -61,7 +61,7 @@ The pure core (no I/O). Origin of the config API and every shared type.
 | `BASELINE_FORMAT_VERSION`                 | const | 🔧        | Bump to invalidate all cached baselines when the dump format changes.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `createStack(deps, spec, seed)`           | fn    | 🔧        | Lifecycle orchestrator (provision → seed → dispose).                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `createPool(adapter, instance, baseline)` | fn    | 🔧        | The single-process lease `Pool`.                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `redactSecrets(text, extra?)`             | fn    | 🔧        | Scrub URL creds / `key=value` / AWS keys / a minted password from a string.                                                                                                                                                                                                                                                                                                                                                                            |
+| `redactSecrets(text, literals?)`          | fn    | 🔧        | Scrub URL creds / `key=value` / AWS keys / a minted password from a string.                                                                                                                                                                                                                                                                                                                                                                            |
 | **Types**                                 |       |           | `Engine`, `Mode`, `EnvMap`, `ProvisionSpec`, `Instance`, `Baseline`, `Lease`, `SeedSpec`, `EngineAdapter`, `BabystackErrorCode`, `Clock`, `CommandRunner`, `CommandResult`, `CommandOptions`, `Pool`, `Stack`, `StackDeps`, `InvalidationInputs`, and the config types (`BabystackConfig`, `ServiceConfig`, `MysqlService`, `RedisService`, `MinioService`, `DynamoService`, `ElasticmqService`, `LocalstackService`, `BaselineConfig`, `TestPolicy`). |
 
 `EngineAdapter` is the extensibility seam — a new engine (Postgres, Redis, …) implements it. See
@@ -99,22 +99,23 @@ User-facing surface is the CLI itself — [§10](#10-the-baby-cli).
 
 Shared session/lifecycle layer (consumed by `vitest` + `cli`; not installed directly).
 
-| Export                                                            | Kind  | Notes                                                                                         |
-| ----------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------- |
-| `loadConfig(configPath?)`                                         | fn    | Load `babystack.config.ts` (default export).                                                  |
-| `provisionStack(config?)`                                         | fn    | Cold path: provision → seed baseline → `{ stack, cleanup }`.                                  |
-| `wake(config?, configPath?, options?)`                            | fn    | `baby wake`: provision + seed, leave running; invalidation-aware. `WakeOptions { rebuild? }`. |
-| `sleep(config?, configPath?)`                                     | fn    | `baby sleep`: dispose this project's container.                                               |
-| `findRunning(config?, configPath?)`                               | fn    | Discover the running container + baseline (for `home`/`reset`).                               |
-| `leaseEnv(instance, baseline, key)`                               | fn    | Destructive: fresh per-key DB from the baseline → env.                                        |
-| `ensureEnv(instance, baseline, key)`                              | fn    | Non-destructive: create+seed only if absent (what `baby home` uses).                          |
-| `resolveMysqlService(config)`                                     | fn    | Pick the single MySQL service; throws `CONFIG_INVALID` otherwise.                             |
-| `resolveInvalidation(service, configPath?)`                       | fn    | Compute the current invalidation hash (reads watched files).                                  |
-| `shouldReuseBaseline(cached, wantHash, force)`                    | fn    | Reuse-vs-rebuild decision (pure).                                                             |
-| `cacheDisabled()`                                                 | fn    | `BABYSTACK_NO_CACHE` parsing.                                                                 |
-| `createMysqlAdapter(options?)`                                    | fn    | Construct the MySQL adapter over the Docker backend.                                          |
-| `toProvisionSpec`, `toSeedSpec`, `buildEnvAllowlist`, `projectId` | fns   | Config→spec helpers; scrubbed build env; per-project id (config-path hash).                   |
-| `AdapterOptions`, `WakeOptions`, `WokenStack`, `CleanupMode`      | types |                                                                                               |
+| Export                                                                                    | Kind  | Notes                                                                                                |
+| ----------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `loadConfig(configPath?)`                                                                 | fn    | Load `babystack.config.ts` (default export).                                                         |
+| `provisionStack(config?)`                                                                 | fn    | Cold path: provision → seed baseline → `{ stack, cleanup }`.                                         |
+| `wake(config?, configPath?, options?)`                                                    | fn    | `baby wake`: provision + seed, leave running; invalidation-aware. `WakeOptions { rebuild? }`.        |
+| `wakeWith(deps, options?)`                                                                | fn    | The `wake` orchestration over an injected `SessionEngine` (advanced/test seam; `wake` is the shell). |
+| `sleep(config?, configPath?)`                                                             | fn    | `baby sleep`: dispose this project's container.                                                      |
+| `findRunning(config?, configPath?)`                                                       | fn    | Discover the running container + baseline (for `home`/`reset`).                                      |
+| `leaseEnv(instance, baseline, key)`                                                       | fn    | Destructive: fresh per-key DB from the baseline → env.                                               |
+| `ensureEnv(instance, baseline, key)`                                                      | fn    | Non-destructive: create+seed only if absent (what `baby home` uses).                                 |
+| `resolveMysqlService(config)`                                                             | fn    | Pick the single MySQL service; throws `CONFIG_INVALID` otherwise.                                    |
+| `resolveInvalidation(service, configPath?)`                                               | fn    | Compute the current invalidation hash (reads watched files).                                         |
+| `shouldReuseBaseline(cached, wantHash, force)`                                            | fn    | Reuse-vs-rebuild decision (pure).                                                                    |
+| `cacheDisabled()`                                                                         | fn    | `BABYSTACK_NO_CACHE` parsing.                                                                        |
+| `createMysqlAdapter(options?)`                                                            | fn    | Construct the MySQL adapter over the Docker backend.                                                 |
+| `toProvisionSpec`, `toSeedSpec`, `buildEnvAllowlist`, `projectId`                         | fns   | Config→spec helpers; scrubbed build env; per-project id (config-path hash).                          |
+| `AdapterOptions`, `WakeOptions`, `WokenStack`, `CleanupMode`, `SessionEngine`, `WakeDeps` | types |                                                                                                      |
 
 ## 7. `@babystack/mysql`
 
@@ -221,14 +222,18 @@ command.
 
 ## 13. Engines
 
-| Engine                  | Status         | Notes                                                                     |
-| ----------------------- | -------------- | ------------------------------------------------------------------------- |
-| `mysql`                 | ✅ Implemented | Real `mysql:8.4` (configurable image). The only engine today.             |
-| `redis`                 | ⏳ Typed only  | Fast-follow (first post-launch engine). Fails fast with `CONFIG_INVALID`. |
-| `minio` (S3)            | ⏳ Typed only  | Roadmap.                                                                  |
-| `dynamodb-local`        | ⏳ Typed only  | Roadmap.                                                                  |
-| `elasticmq` (SQS)       | ⏳ Typed only  | Roadmap.                                                                  |
-| `localstack` (AWS tail) | ⏳ Typed only  | Roadmap.                                                                  |
+| Engine                  | Status         | Notes                                                         |
+| ----------------------- | -------------- | ------------------------------------------------------------- |
+| `mysql`                 | ✅ Implemented | Real `mysql:8.4` (configurable image). The only engine today. |
+| `redis`                 | ⏳ Typed only  | Roadmap. Fails fast with `CONFIG_INVALID`.                    |
+| `minio` (S3)            | ⏳ Typed only  | Roadmap.                                                      |
+| `dynamodb-local`        | ⏳ Typed only  | Roadmap.                                                      |
+| `elasticmq` (SQS)       | ⏳ Typed only  | Roadmap.                                                      |
+| `localstack` (AWS tail) | ⏳ Typed only  | Roadmap.                                                      |
 
-Adding an engine: implement `EngineAdapter`, pass the shared conformance suite, and register it — see the
-worked example in [Architecture §5](./architecture.md#5-worked-example--adding-an-engine).
+**Postgres is the priority next engine** (see the [roadmap](../ROADMAP.md)); it isn't listed above because
+it's not yet in the `Engine` type union — it joins when its adapter lands.
+
+Adding an engine: implement `EngineAdapter`, pass the shared conformance suite (authored with engine #2 —
+until then the MySQL adapter's invariants are tested directly), and register it — see the worked example in
+[Architecture §5](./architecture.md#5-worked-example--adding-an-engine).

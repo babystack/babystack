@@ -245,6 +245,11 @@ its database and a URL. On the next run the baseline is reused, so provisioning 
 - **Within a single file:** tests share the file's database, so a committed write in one `it()` **is
   visible** to the next `it()` in the same file. If you need per-test cleanliness, do your own
   `beforeEach` reset — per-test reset isn't a Phase-0 feature (`truncate` is cut).
+- **Leave `isolate` at its default (`true`).** With `isolate: false`, Vitest reuses one module registry
+  across all files in a worker, so a module that captured `DATABASE_URL` at import keeps the **first**
+  file's value even though `setupFiles` re-leases a fresh DB for each subsequent file — the per-file
+  reset still happens, but your app quietly keeps talking to the first file's database. Lazy env reads
+  (the one rule above) make this safe either way; until then, don't disable isolation.
 
 `cleanup` on a run — how the Vitest `globalSetup` teardown disposes the container:
 
@@ -266,7 +271,7 @@ never touched.
 > **Shipped in sub-phase 0.7.** `doctor` · `wake` · `home` · `reset` · `sleep` all work today. The Vitest
 > wiring above needs no CLI — this is the **operator + agent** surface. All commands take `--json` (stable
 > shape for CI/agents). The full agent loop is documented in
-> [`packages/cli/README.md`](../packages/cli/README.md).
+> [`packages/cli/README.md`](../../packages/cli/README.md).
 
 The container `baby wake` starts is **detached, so it persists** after the command exits; a later `home` /
 `reset` / `sleep` (a separate process) rediscovers it by a per-project label and recovers the minted password
@@ -329,7 +334,7 @@ baby sleep                # done: dispose the container
 ```
 
 Non-zero exit with `nothing is awake — run \`baby wake\` first` if no container is up. The end-to-end agent
-loop (with a worked example) lives in [`packages/cli/README.md`](../packages/cli/README.md).
+loop (with a worked example) lives in [`packages/cli/README.md`](../../packages/cli/README.md).
 
 ### `baby sleep` (alias `down`)
 
