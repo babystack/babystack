@@ -402,7 +402,7 @@ Not on npm yet — so the `pnpm add`/`npx baby` commands above don't resolve. To
 release, work from the repo:
 
 ```bash
-git clone https://github.com/sharvilk/babystack && cd babystack
+git clone https://github.com/babystack/babystack && cd babystack
 pnpm install
 # with Docker running — the complete runnable example (real Express + Drizzle + MySQL):
 pnpm --filter users-api test

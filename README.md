@@ -13,7 +13,7 @@ _Every test run and every AI-agent session gets its own private, seeded, disposa
 services your app uses — spun up in Docker, injected as env vars, thrown away after. No shared dev DB, no
 mocks, no lifecycle code in your tests._
 
-[![CI](https://github.com/sharvilk/babystack/actions/workflows/ci.yml/badge.svg)](https://github.com/sharvilk/babystack/actions/workflows/ci.yml)
+[![CI](https://github.com/babystack/babystack/actions/workflows/ci.yml/badge.svg)](https://github.com/babystack/babystack/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 ![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)
 
