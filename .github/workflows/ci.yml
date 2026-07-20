@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-# NOTE (hardening follow-up, tracked in docs/99-ROADMAP.md): pin these actions to full commit SHAs.
+# NOTE (hardening follow-up, tracked in the roadmap): pin these actions to full commit SHAs.
 # Dependabot (github-actions, monthly) is configured to keep them current once pinned.
 
 permissions:
