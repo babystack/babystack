@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DockerBackend } from '../src/index'
+import { DockerBackend, OWNER_LABEL } from '../src/index'
 import { FakeClock, FakeCommandRunner } from './fakes'
 
 const DOCKER_ENV = { PATH: '/usr/bin' }
@@ -111,10 +111,29 @@ describe('DockerBackend.exec', () => {
   it('emits `docker exec` and adds -i + stdin when piping input', async () => {
     const { runner, backend } = make()
     await backend.exec('c', ['echo', 'hi'])
-    await backend.exec('c', ['sh'], 'piped')
+    await backend.exec('c', ['sh'], { stdin: 'piped' })
     expect(runner.calls[0]?.argv).toEqual(['docker', 'exec', 'c', 'echo', 'hi'])
     expect(runner.calls[1]?.argv).toEqual(['docker', 'exec', '-i', 'c', 'sh'])
     expect(runner.calls[1]?.options?.stdin).toBe('piped')
+  })
+
+  it('forwards env vars into the container BY NAME (`-e NAME`) and never in an argv', async () => {
+    const { runner, backend } = make()
+    await backend.exec('c', ['mysql', '-e', 'SELECT 1'], { env: { MYSQL_PWD: 's3cr3t' } })
+    // `-e MYSQL_PWD` (name only) precedes the container id; the value is NOWHERE in argv.
+    expect(runner.calls[0]?.argv).toEqual([
+      'docker',
+      'exec',
+      '-e',
+      'MYSQL_PWD',
+      'c',
+      'mysql',
+      '-e',
+      'SELECT 1',
+    ])
+    expect(runner.calls[0]?.argv.join(' ')).not.toContain('s3cr3t')
+    // The value rides in the docker process's OWN env instead (so docker can forward it).
+    expect(runner.calls[0]?.options?.env?.MYSQL_PWD).toBe('s3cr3t')
   })
 })
 
@@ -203,5 +222,30 @@ describe('DockerBackend.gc', () => {
     const { runner, backend } = make(handler)
     expect(await backend.gc({ exceptRunId: 'r1' })).toEqual(['id1', 'id3'])
     expect(runner.calls.at(-1)?.argv).toEqual(['docker', 'rm', '-f', '-v', 'id1', 'id3'])
+  })
+
+  // Safety invariants — a reaper that could ever touch a NON-babystack container, or issue a blind `rm`
+  // with no ids, would be catastrophic. Pin them so a future refactor can't quietly loosen the scope.
+  it('always scopes the enumeration to the owner label (never sees a non-babystack container)', async () => {
+    const { runner, backend } = make(handler)
+    await backend.gc()
+    const firstPs = runner.calls.find((c) => c.argv[1] === 'ps')
+    expect(firstPs?.argv).toContain(`label=${OWNER_LABEL}`)
+  })
+
+  it('reaps nothing and never calls `rm` when no babystack containers exist', async () => {
+    const { runner, backend } = make(() => ({ code: 0, stdout: '', stderr: '' }))
+    expect(await backend.gc()).toEqual([])
+    expect(runner.calls.some((c) => c.argv.includes('rm'))).toBe(false)
+  })
+
+  it('reaps nothing (never a blind `rm`) when the owner-label query itself fails', async () => {
+    const { runner, backend } = make((argv) =>
+      argv[1] === 'ps'
+        ? { code: 1, stdout: '', stderr: 'daemon down' }
+        : { code: 0, stdout: '', stderr: '' },
+    )
+    expect(await backend.gc()).toEqual([])
+    expect(runner.calls.some((c) => c.argv.includes('rm'))).toBe(false)
   })
 })

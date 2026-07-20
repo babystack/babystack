@@ -2,9 +2,11 @@
 // `exports` map, a CJS-interop bug, or a bad bin fails CI instead of shipping. Run after `pnpm -r build`
 // (the built dist must exist). No Docker required — this exercises packaging, not the engine.
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 
@@ -37,6 +39,45 @@ const cfg = flagship.defineConfig({
 })
 assert.equal(cfg.services.db.engine, 'mysql', 'defineConfig should return the config object')
 
+// @babystack/vitest — the test wedge. Consumers wire THREE entry points into `vitest.config.ts`, so a
+// broken `exports` map or a dist file tsup forgot to emit would break every consumer silently. Verify all
+// three resolve.
+const vitest = await import('@babystack/vitest')
+assert.equal(
+  typeof vitest.defineConfig,
+  'function',
+  '@babystack/vitest: should re-export defineConfig() (the single-install path)',
+)
+assert.equal(
+  typeof vitest.provisionStack,
+  'function',
+  '@babystack/vitest: should re-export the runtime helpers (provisionStack)',
+)
+// `./global-setup` only DEFINES its setup/teardown fns at import — safe to execute here.
+const globalSetup = await import('@babystack/vitest/global-setup')
+assert.equal(
+  typeof globalSetup.default,
+  'function',
+  '@babystack/vitest/global-setup: should default-export the globalSetup fn',
+)
+assert.equal(
+  typeof globalSetup.teardown,
+  'function',
+  '@babystack/vitest/global-setup: should export teardown()',
+)
+// `./setup` calls `inject()` at import (worker-only) — importing it here would throw. Resolve it instead
+// (execution-free) and confirm the dist file exists, proving the subpath export is wired to a real artifact.
+let setupUrl
+try {
+  setupUrl = import.meta.resolve('@babystack/vitest/setup')
+} catch (error) {
+  assert.fail(`@babystack/vitest/setup: subpath export should resolve — ${error.message}`)
+}
+assert.ok(
+  existsSync(fileURLToPath(setupUrl)),
+  `@babystack/vitest/setup: exports map resolves but the built file is missing (${setupUrl})`,
+)
+
 // The `baby` CLI bin (shipped by the flagship) — exercise it end-to-end (Docker-free paths only). The full
 // command logic is unit-tested from source; this catches a broken build / bin shim / cross-package resolve.
 const bin = join(import.meta.dirname, '..', 'packages', 'babystack', 'bin', 'baby.js')
@@ -47,5 +88,5 @@ const unknown = spawnSync(process.execPath, [bin, 'frobnicate'], { encoding: 'ut
 assert.equal(unknown.status, 1, 'baby bin: an unknown command should exit 1')
 
 console.log(
-  'smoke ✓  @babystack/core loads (ESM + CJS); the babystack flagship re-exports defineConfig; the baby CLI bin runs (help → 0, unknown → 1)',
+  'smoke ✓  @babystack/core loads (ESM + CJS); the babystack flagship re-exports defineConfig; @babystack/vitest resolves all three entry points (. / global-setup / setup); the baby CLI bin runs (help → 0, unknown → 1)',
 )

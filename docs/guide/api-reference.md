@@ -99,22 +99,23 @@ User-facing surface is the CLI itself — [§10](#10-the-baby-cli).
 
 Shared session/lifecycle layer (consumed by `vitest` + `cli`; not installed directly).
 
-| Export                                                            | Kind  | Notes                                                                                         |
-| ----------------------------------------------------------------- | ----- | --------------------------------------------------------------------------------------------- |
-| `loadConfig(configPath?)`                                         | fn    | Load `babystack.config.ts` (default export).                                                  |
-| `provisionStack(config?)`                                         | fn    | Cold path: provision → seed baseline → `{ stack, cleanup }`.                                  |
-| `wake(config?, configPath?, options?)`                            | fn    | `baby wake`: provision + seed, leave running; invalidation-aware. `WakeOptions { rebuild? }`. |
-| `sleep(config?, configPath?)`                                     | fn    | `baby sleep`: dispose this project's container.                                               |
-| `findRunning(config?, configPath?)`                               | fn    | Discover the running container + baseline (for `home`/`reset`).                               |
-| `leaseEnv(instance, baseline, key)`                               | fn    | Destructive: fresh per-key DB from the baseline → env.                                        |
-| `ensureEnv(instance, baseline, key)`                              | fn    | Non-destructive: create+seed only if absent (what `baby home` uses).                          |
-| `resolveMysqlService(config)`                                     | fn    | Pick the single MySQL service; throws `CONFIG_INVALID` otherwise.                             |
-| `resolveInvalidation(service, configPath?)`                       | fn    | Compute the current invalidation hash (reads watched files).                                  |
-| `shouldReuseBaseline(cached, wantHash, force)`                    | fn    | Reuse-vs-rebuild decision (pure).                                                             |
-| `cacheDisabled()`                                                 | fn    | `BABYSTACK_NO_CACHE` parsing.                                                                 |
-| `createMysqlAdapter(options?)`                                    | fn    | Construct the MySQL adapter over the Docker backend.                                          |
-| `toProvisionSpec`, `toSeedSpec`, `buildEnvAllowlist`, `projectId` | fns   | Config→spec helpers; scrubbed build env; per-project id (config-path hash).                   |
-| `AdapterOptions`, `WakeOptions`, `WokenStack`, `CleanupMode`      | types |                                                                                               |
+| Export                                                                                    | Kind  | Notes                                                                                                |
+| ----------------------------------------------------------------------------------------- | ----- | ---------------------------------------------------------------------------------------------------- |
+| `loadConfig(configPath?)`                                                                 | fn    | Load `babystack.config.ts` (default export).                                                         |
+| `provisionStack(config?)`                                                                 | fn    | Cold path: provision → seed baseline → `{ stack, cleanup }`.                                         |
+| `wake(config?, configPath?, options?)`                                                    | fn    | `baby wake`: provision + seed, leave running; invalidation-aware. `WakeOptions { rebuild? }`.        |
+| `wakeWith(deps, options?)`                                                                | fn    | The `wake` orchestration over an injected `SessionEngine` (advanced/test seam; `wake` is the shell). |
+| `sleep(config?, configPath?)`                                                             | fn    | `baby sleep`: dispose this project's container.                                                      |
+| `findRunning(config?, configPath?)`                                                       | fn    | Discover the running container + baseline (for `home`/`reset`).                                      |
+| `leaseEnv(instance, baseline, key)`                                                       | fn    | Destructive: fresh per-key DB from the baseline → env.                                               |
+| `ensureEnv(instance, baseline, key)`                                                      | fn    | Non-destructive: create+seed only if absent (what `baby home` uses).                                 |
+| `resolveMysqlService(config)`                                                             | fn    | Pick the single MySQL service; throws `CONFIG_INVALID` otherwise.                                    |
+| `resolveInvalidation(service, configPath?)`                                               | fn    | Compute the current invalidation hash (reads watched files).                                         |
+| `shouldReuseBaseline(cached, wantHash, force)`                                            | fn    | Reuse-vs-rebuild decision (pure).                                                                    |
+| `cacheDisabled()`                                                                         | fn    | `BABYSTACK_NO_CACHE` parsing.                                                                        |
+| `createMysqlAdapter(options?)`                                                            | fn    | Construct the MySQL adapter over the Docker backend.                                                 |
+| `toProvisionSpec`, `toSeedSpec`, `buildEnvAllowlist`, `projectId`                         | fns   | Config→spec helpers; scrubbed build env; per-project id (config-path hash).                          |
+| `AdapterOptions`, `WakeOptions`, `WokenStack`, `CleanupMode`, `SessionEngine`, `WakeDeps` | types |                                                                                                      |
 
 ## 7. `@babystack/mysql`
 

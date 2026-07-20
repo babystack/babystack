@@ -28,5 +28,17 @@ export function redactSecrets(text: string, literals: readonly string[] = []): s
   // 4. AWS access key IDs (a common, distinctive shape).
   out = out.replace(/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/g, '***')
 
+  // 5. Bearer auth tokens (`Authorization: Bearer <token>` — the `auth` keyword in rule 3 has a word
+  //    boundary that "Authorization" doesn't satisfy, so the token itself needs its own rule).
+  out = out.replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]+=*/gi, '$1***')
+
+  // 6. JSON Web Tokens (header.payload.signature). The `eyJ` prefix is base64 of `{"` — distinctive enough
+  //    to redact on sight, and JWTs routinely embed credentials/PII in the payload.
+  out = out.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '***')
+
+  // 7. Provider tokens with a distinctive prefix (GitHub PATs, Slack). Low false-positive: the prefixes
+  //    don't occur in ordinary MySQL/seed output.
+  out = out.replace(/\b(?:gh[oprsu]_|github_pat_|xox[baprs]-)[A-Za-z0-9_-]{10,}/g, '***')
+
   return out
 }

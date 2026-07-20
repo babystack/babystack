@@ -41,6 +41,8 @@ export interface Container {
 export interface WaitReadyOptions {
   readonly timeoutMs?: number
   readonly intervalMs?: number
+  /** Env vars forwarded into the container for the probe (e.g. `MYSQL_PWD`) BY NAME — never in argv. */
+  readonly env?: Readonly<Record<string, string>>
 }
 
 export interface GcOptions {
@@ -64,9 +66,14 @@ export class DockerBackend {
     this.dockerEnv = deps.dockerEnv ?? dockerEnvAllowlist()
   }
 
-  /** Run a `docker …` command with the minimal docker env (never the ambient/source env). */
-  private docker(args: readonly string[], stdin?: string): Promise<CommandResult> {
-    const options = stdin === undefined ? { env: this.dockerEnv } : { env: this.dockerEnv, stdin }
+  /** Run a `docker …` command with the minimal docker env (never the ambient/source env). `env` merges
+   * OVER the base docker env — used to hand `docker exec -e NAME` a value to forward into a container. */
+  private docker(
+    args: readonly string[],
+    opts: { stdin?: string; env?: Readonly<Record<string, string>> } = {},
+  ): Promise<CommandResult> {
+    const env = opts.env ? { ...this.dockerEnv, ...opts.env } : this.dockerEnv
+    const options = opts.stdin === undefined ? { env } : { env, stdin: opts.stdin }
     return this.runner.run(['docker', ...args], options)
   }
 
@@ -162,10 +169,20 @@ export class DockerBackend {
     return env
   }
 
-  /** Exec a command inside a container (optionally piping stdin). */
-  exec(id: string, argv: readonly string[], stdin?: string): Promise<CommandResult> {
-    const flags = stdin === undefined ? ['exec'] : ['exec', '-i']
-    return this.docker([...flags, id, ...argv], stdin)
+  /**
+   * Exec a command inside a container. `stdin` pipes input; `env` forwards named vars INTO the container by
+   * NAME (`-e NAME`, not `-e NAME=value`) — the value travels via the docker process's OWN environment, so a
+   * secret (e.g. the minted MySQL password) never appears in an argv on the host or inside the container.
+   * That kills both the `ps` exposure and MySQL's "password on the command line is insecure" stderr warning.
+   */
+  exec(
+    id: string,
+    argv: readonly string[],
+    opts: { stdin?: string; env?: Readonly<Record<string, string>> } = {},
+  ): Promise<CommandResult> {
+    const envFlags = opts.env ? Object.keys(opts.env).flatMap((name) => ['-e', name]) : []
+    const base = opts.stdin === undefined ? ['exec'] : ['exec', '-i']
+    return this.docker([...base, ...envFlags, id, ...argv], opts)
   }
 
   /**
@@ -180,8 +197,9 @@ export class DockerBackend {
     const timeoutMs = options.timeoutMs ?? 30_000
     const intervalMs = options.intervalMs ?? 500
     const deadline = Date.parse(this.clock.now()) + timeoutMs
+    const execOpts = options.env ? { env: options.env } : {}
     for (;;) {
-      const { code } = await this.exec(id, probe)
+      const { code } = await this.exec(id, probe, execOpts)
       if (code === 0) return
       if (Date.parse(this.clock.now()) >= deadline) {
         throw new BabystackError(

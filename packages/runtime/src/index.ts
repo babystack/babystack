@@ -7,11 +7,13 @@ import {
   BASELINE_FORMAT_VERSION,
   computeInvalidationHash,
   createStack,
+  defineConfig,
 } from '@babystack/core'
 import { glob } from 'tinyglobby'
 import type {
   Baseline,
   BabystackConfig,
+  EngineAdapter,
   EnvMap,
   Instance,
   MysqlService,
@@ -133,7 +135,11 @@ export async function loadConfig(configPath?: string): Promise<BabystackConfig> 
   if (mod.default === undefined) {
     throw new BabystackError('CONFIG_INVALID', `${abs} must default-export defineConfig({ ... }).`)
   }
-  return mod.default
+  // Re-run defineConfig's guards at the load boundary. A hand-authored `export default { ... }` (or a config
+  // assembled without defineConfig) would otherwise skip the service-name/engine validation — letting an
+  // unsafe name reach a filesystem path or a backtick-quoted SQL identifier. Idempotent for a config already
+  // wrapped in defineConfig, so it's safe to always apply.
+  return defineConfig(mod.default)
 }
 
 /**
@@ -148,7 +154,15 @@ export async function provisionStack(
   const { name, service } = resolveMysqlService(cfg)
   await ensureDockerAvailable()
   const runId = `bs_${randomBytes(6).toString('hex')}`
-  const adapter = createMysqlAdapter({ runId, ...imageOption(service) })
+  // Scope the baseline cache dir by runId (not just the container): the Vitest path rebuilds every run, so
+  // two concurrent `vitest` invocations in one project (watch mode in two terminals; a focused run during a
+  // full run) would otherwise race on the SAME `.babystack/cache/baselines/<svc>/dump.sql` and trip a
+  // spurious BASELINE_CORRUPT. A per-run dir keeps them isolated.
+  const adapter = createMysqlAdapter({
+    runId,
+    cacheDir: resolve('.babystack/cache', 'runs', runId),
+    ...imageOption(service),
+  })
   const stack = await createStack({ adapter }, toProvisionSpec(name, service), toSeedSpec(service))
   return { stack, cleanup: service.test?.cleanup ?? 'destroy' }
 }
@@ -198,7 +212,8 @@ export function projectId(configPath?: string): string {
  * Per-project cache root — namespaced by {@link projectId} so two different configs in one directory (even
  * sharing a service key like `db`) never share a baseline dump/sidecar. Without this, project A could load
  * project B's seed while the integrity check still passes — the exact "cache serves wrong seed" trust cliff.
- * (The Vitest path rebuilds per run and scopes its container by `runId`, so it uses the default cache dir.)
+ * (The Vitest path rebuilds per run and scopes BOTH its container and its cache dir by `runId` — see
+ * {@link provisionStack} — so it never shares this per-project dir.)
  */
 function sessionCacheDir(id: string): string {
   return resolve('.babystack/cache', 'projects', id)
@@ -313,26 +328,38 @@ export interface WakeOptions {
   readonly rebuild?: boolean
 }
 
-/** `baby wake`: provision + seed the baseline and LEAVE the container running, or return the already-running
- * one (idempotent). The container persists after this process exits (detached), for later `baby home`.
- *
- * `wake` is the command that ESTABLISHES/refreshes the baseline. When the invalidation hash (config + build
- * commands + image + watched migration/seed file contents) still matches the cached one it reuses in place;
- * otherwise it DISPOSES the running container and re-provisions a fully fresh stack — new engine image,
- * freshly-built baseline, and no leftover per-key session databases. That whole-stack replacement is what
- * makes the guarantee real end-to-end: after changing a migration/seed and re-running `baby wake`, the next
- * `baby home` serves the NEW seed, never a stale cached one (the trust cliff). Because a rebuild replaces the
- * container, its host port (and thus the `home` URL) can change — re-run `baby home` after an input change. */
-export async function wake(
-  config?: BabystackConfig,
-  configPath?: string,
-  options: WakeOptions = {},
-): Promise<WokenStack> {
-  const cfg = config ?? (await loadConfig(configPath))
-  const { adapter, name, service, cacheDir } = sessionAdapter(cfg, projectId(configPath))
-  await ensureDockerAvailable()
+/**
+ * The engine surface the CLI session layer ({@link wake}/{@link findRunning}/{@link sleep}) drives: the
+ * {@link EngineAdapter} lifecycle plus `discover` (rediscover a container a prior command left running).
+ * A {@link MysqlAdapter} satisfies it. Named so {@link wakeWith} can be exercised with a fake — no Docker.
+ */
+export type SessionEngine = Pick<
+  EngineAdapter,
+  'provision' | 'waitReady' | 'buildBaseline' | 'dispose'
+> & {
+  discover(service: string): Promise<Instance | undefined>
+}
 
-  const wantHash = await resolveInvalidation(service, configPath)
+/** The already-resolved session deps {@link wakeWith} operates on — the adapter + its project name/service/
+ * cache dir + the freshly-computed invalidation hash. {@link wake} builds these from config; tests fake them. */
+export interface WakeDeps {
+  readonly adapter: SessionEngine
+  readonly name: string
+  readonly service: MysqlService
+  readonly cacheDir: string
+  readonly wantHash: string
+}
+
+/**
+ * The wake ORCHESTRATION, decoupled from adapter construction, the Docker preflight, config loading, and
+ * invalidation hashing (all of which {@link wake} does first). Given a running-or-not engine it: reuses an
+ * already-running container when its baseline still matches; disposes + re-provisions when inputs changed,
+ * when a rebuild was forced, OR when the discovered container isn't accepting connections; and disposes on
+ * partial init so a failed wake never leaks a container. Exported so this whole branch matrix is unit-testable
+ * with a fake engine + a temp cache dir; production goes through {@link wake}.
+ */
+export async function wakeWith(deps: WakeDeps, options: WakeOptions = {}): Promise<WokenStack> {
+  const { adapter, name, service, cacheDir, wantHash } = deps
   // Cross-run baseline reuse is only SAFE when we can detect input changes. If the service runs `build`
   // commands but declares NO `invalidateWhenChanged` globs, the hash can't see an edited migration/seed —
   // reusing would risk serving stale seed (the trust cliff). So force a rebuild instead; declaring the
@@ -353,19 +380,29 @@ export async function wake(
   const existing = await adapter.discover(name)
   if (existing) {
     // The container persists across processes, but confirm mysqld is actually accepting connections before
-    // reusing it — it could be mid-boot or dead-in-place.
-    await adapter.waitReady(existing)
-    const cached = await readBaselineSidecar(cacheDir, name)
-    // Reuse ONLY when the cached baseline's hash matches the current inputs (and no explicit opt-out).
-    if (cached !== undefined && shouldReuseBaseline(cached, wantHash, force)) {
-      return { instance: existing, baseline: cached, alreadyRunning: true }
+    // reusing it. A discovered-but-unready container (mid-boot after a host reboot, or wedged) must NOT
+    // wedge EVERY future `wake` with a WAIT_READY_TIMEOUT it can't recover from — dispose it and fall
+    // through to a fresh provision, exactly as if nothing had been running.
+    let ready = false
+    try {
+      await adapter.waitReady(existing)
+      ready = true
+    } catch {
+      await adapter.dispose(existing).catch(() => {})
     }
-    // The inputs changed (or a rebuild was forced). Rebuilding just the dump is NOT enough: the running
-    // container still holds the per-key session databases `baby home` already created (seeded from the OLD
-    // baseline), and a changed `image` means the engine itself is now wrong — so `home` would keep serving
-    // stale seed off a stale engine (the trust cliff). Dispose the whole container and fall through to a
-    // full fresh provision: current image, freshly-built baseline, and no stale session DBs to leak.
-    await adapter.dispose(existing)
+    if (ready) {
+      const cached = await readBaselineSidecar(cacheDir, name)
+      // Reuse ONLY when the cached baseline's hash matches the current inputs (and no explicit opt-out).
+      if (cached !== undefined && shouldReuseBaseline(cached, wantHash, force)) {
+        return { instance: existing, baseline: cached, alreadyRunning: true }
+      }
+      // The inputs changed (or a rebuild was forced). Rebuilding just the dump is NOT enough: the running
+      // container still holds the per-key session databases `baby home` already created (seeded from the OLD
+      // baseline), and a changed `image` means the engine itself is now wrong — so `home` would keep serving
+      // stale seed off a stale engine (the trust cliff). Dispose the whole container and fall through to a
+      // full fresh provision: current image, freshly-built baseline, and no stale session DBs to leak.
+      await adapter.dispose(existing)
+    }
   }
 
   const instance = await adapter.provision(toProvisionSpec(name, service))
@@ -383,6 +420,31 @@ export async function wake(
     }
     throw error
   }
+}
+
+/** `baby wake`: provision + seed the baseline and LEAVE the container running, or return the already-running
+ * one (idempotent). The container persists after this process exits (detached), for later `baby home`.
+ *
+ * `wake` is the command that ESTABLISHES/refreshes the baseline. When the invalidation hash (config + build
+ * commands + image + watched migration/seed file contents) still matches the cached one it reuses in place;
+ * otherwise it DISPOSES the running container and re-provisions a fully fresh stack — new engine image,
+ * freshly-built baseline, and no leftover per-key session databases. That whole-stack replacement is what
+ * makes the guarantee real end-to-end: after changing a migration/seed and re-running `baby wake`, the next
+ * `baby home` serves the NEW seed, never a stale cached one (the trust cliff). Because a rebuild replaces the
+ * container, its host port (and thus the `home` URL) can change — re-run `baby home` after an input change.
+ *
+ * This is the imperative shell: it resolves config → adapter, does the Docker preflight, and computes the
+ * invalidation hash, then hands off to {@link wakeWith} for the (unit-tested) orchestration. */
+export async function wake(
+  config?: BabystackConfig,
+  configPath?: string,
+  options: WakeOptions = {},
+): Promise<WokenStack> {
+  const cfg = config ?? (await loadConfig(configPath))
+  const { adapter, name, service, cacheDir } = sessionAdapter(cfg, projectId(configPath))
+  await ensureDockerAvailable()
+  const wantHash = await resolveInvalidation(service, configPath)
+  return wakeWith({ adapter, name, service, cacheDir, wantHash }, options)
 }
 
 /** Discover the running container for this project + its baseline (for `baby home`/`reset`). Undefined if

@@ -27,6 +27,10 @@ const DUMP_FLAGS = [
   '--hex-blob',
 ] as const
 
+/** A lease key is part of a backtick-quoted SQL identifier (`babystack_<svc>_w<key>`); constrain its charset
+ * so it can't break out. Matches the CLI's `'agent'` and any `VITEST_POOL_ID`. */
+const LEASE_KEY = /^[A-Za-z0-9_]{1,64}$/
+
 export interface MysqlAdapterOptions {
   /** Docker image for the real engine (defaults to `mysql:8.4`). Pin it to match prod. */
   readonly image?: string
@@ -133,8 +137,9 @@ export class MysqlAdapter implements EngineAdapter {
     // fail the whole run even though the engine was coming up fine.
     await this.docker.waitReady(
       instance.id,
-      ['mysql', '-h', '127.0.0.1', '-uroot', `-p${password}`, '-e', 'SELECT 1'],
-      { timeoutMs: 120_000 },
+      ['mysql', '-h', '127.0.0.1', '-uroot', '-e', 'SELECT 1'],
+      // MYSQL_PWD forwarded by name (never `-p<pw>` in argv): no `ps` exposure, no insecure-password warning.
+      { timeoutMs: 120_000, env: { MYSQL_PWD: password } },
     )
   }
 
@@ -191,8 +196,17 @@ export class MysqlAdapter implements EngineAdapter {
     }
   }
 
-  /** The deterministic per-key database name (`babystack_<service>_w<key>`). Injective across keys. */
+  /** The deterministic per-key database name (`babystack_<service>_w<key>`). Injective across keys. The key
+   * (`VITEST_POOL_ID`, or the CLI's `'agent'`) flows UNQUOTED into a backtick-quoted SQL identifier, so guard
+   * it at the boundary: a key with a backtick could otherwise break out of the identifier. Fail fast rather
+   * than at exec time. (`instance.service` is already constrained to the same charset by defineConfig.) */
   private databaseName(instance: Instance, key: string): string {
+    if (!LEASE_KEY.test(key)) {
+      throw new BabystackError(
+        'LEASE_FAILED',
+        `lease key "${key}" is invalid — use only letters, digits, and underscores (1–64 chars).`,
+      )
+    }
     return `babystack_${instance.service}_w${key}`
   }
 
@@ -200,14 +214,17 @@ export class MysqlAdapter implements EngineAdapter {
    * uses this so `baby home` can return a URL without wiping an agent's in-progress work.) */
   private async databaseExists(instance: Instance, database: string): Promise<boolean> {
     const password = rootPassword(instance)
-    const result = await this.docker.exec(instance.id, [
-      'mysql',
-      '-uroot',
-      `-p${password}`,
-      '-N',
-      '-e',
-      `SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '${database}'`,
-    ])
+    const result = await this.docker.exec(
+      instance.id,
+      [
+        'mysql',
+        '-uroot',
+        '-N',
+        '-e',
+        `SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '${database}'`,
+      ],
+      { env: { MYSQL_PWD: password } },
+    )
     return result.code === 0 && result.stdout.trim().startsWith('1')
   }
 
@@ -248,11 +265,10 @@ export class MysqlAdapter implements EngineAdapter {
           `baseline at ${baseline.ref} failed its integrity check (expected ${baseline.checksum}, got ${actual}) — the cache is corrupt or truncated; rebuild it.`,
         )
       }
-      const load = await this.docker.exec(
-        instance.id,
-        ['mysql', '-uroot', `-p${password}`, database],
-        dump,
-      )
+      const load = await this.docker.exec(instance.id, ['mysql', '-uroot', database], {
+        stdin: dump,
+        env: { MYSQL_PWD: password },
+      })
       if (load.code !== 0) {
         throw new BabystackError(
           'LEASE_FAILED',
@@ -296,13 +312,9 @@ export class MysqlAdapter implements EngineAdapter {
     code: 'BASELINE_BUILD_FAILED' | 'LEASE_FAILED',
   ): Promise<void> {
     const password = rootPassword(instance)
-    const result = await this.docker.exec(instance.id, [
-      'mysql',
-      '-uroot',
-      `-p${password}`,
-      '-e',
-      statement,
-    ])
+    const result = await this.docker.exec(instance.id, ['mysql', '-uroot', '-e', statement], {
+      env: { MYSQL_PWD: password },
+    })
     if (result.code !== 0) {
       throw new BabystackError(
         code,
@@ -314,13 +326,11 @@ export class MysqlAdapter implements EngineAdapter {
   /** `mysqldump` the given database inside the container and return the normalized SQL text. */
   private async dump(instance: Instance, database: string): Promise<string> {
     const password = rootPassword(instance)
-    const result = await this.docker.exec(instance.id, [
-      'mysqldump',
-      '-uroot',
-      `-p${password}`,
-      ...DUMP_FLAGS,
-      database,
-    ])
+    const result = await this.docker.exec(
+      instance.id,
+      ['mysqldump', '-uroot', ...DUMP_FLAGS, database],
+      { env: { MYSQL_PWD: password } },
+    )
     if (result.code !== 0) {
       throw new BabystackError(
         'BASELINE_BUILD_FAILED',
