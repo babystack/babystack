@@ -31,7 +31,7 @@
     "smoke": "node scripts/smoke.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "pnpm -r build && pnpm -r publish",
+    "release": "turbo run build && changeset publish",
     "prepare": "husky"
   },
   "devDependencies": {
