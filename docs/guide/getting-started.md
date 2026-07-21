@@ -216,7 +216,7 @@ deferred — the error code is reserved but not yet thrown.
 ```
 vitest globalSetup (once, main process)
   → read babystack.config.ts + check Docker is reachable (typed DOCKER_UNAVAILABLE if not)
-  → provision ONE real mysql:8.4 in Docker on an ephemeral loopback port   [honest ~1–5s boot]
+  → provision ONE real mysql:8.4 in Docker on an ephemeral loopback port   [~1–5s boot; the FIRST-EVER run also pulls the image, ~30–90s once]
   → build the seeded baseline ONCE: run your migrate + seed, then mysqldump
       → cache the dump under .babystack/cache/ (atomic write + sha256)      [rebuilt each run in Phase 0]
   → hand the container coordinates to the workers
