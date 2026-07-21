@@ -37,8 +37,7 @@ end-to-end. Licensed Apache-2.0.
 - **CLI / AI agents:** `pnpm add -D babystack` → the `baby` command: `baby doctor|wake|home|reset|sleep`
   (all `--json`). `baby reset` reloads a pristine seeded database with no container re-provision — the
   agent's undo between attempts.
-- **Requires a running Docker engine.** Not yet published to npm (pre-alpha) — until the first release,
-  work from the repo.
+- **Requires a running Docker engine.** Published on npm as of v0.1.0 (pre-alpha) — `pnpm add -D @babystack/vitest`.
 
 ## Docs
 
