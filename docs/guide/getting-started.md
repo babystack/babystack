@@ -3,10 +3,11 @@
 > **How you use babystack** — the MySQL + Vitest wedge, end to end. For where it's headed next, see the
 > [roadmap](../ROADMAP.md).
 >
-> ⚠️ **Pre-alpha.** babystack is **not on npm yet**. The engine, the Vitest wedge, the `examples/` app, and
-> the `baby` CLI (`doctor`/`wake`/`home`/`reset`/`sleep`) are all **built and proven end-to-end** (real
-> MySQL, parallel isolation, cross-invocation CLI). Everything below is the intended behavior; the few knobs
-> not yet honored are called out. To try it now, see [Trying it today](#trying-it-today-pre-alpha).
+> ⚠️ **Pre-alpha — but published.** `v0.1.0` is live on npm, so the `pnpm add` and `baby` commands below
+> work today. The engine, the Vitest wedge, the `examples/` app, and the `baby` CLI
+> (`doctor`/`wake`/`home`/`reset`/`sleep`) are all **built and proven end-to-end** (real MySQL, parallel
+> isolation, cross-invocation CLI). Interfaces may still shift before `1.0`; the few knobs not yet honored
+> are called out below.
 
 ## Table of contents
 
@@ -61,8 +62,7 @@ Vitest `globalSetup` also fails fast with a typed `DOCKER_UNAVAILABLE` if the en
 
 ## Install
 
-> **These npm commands don't work yet** (pre-alpha, unpublished). This is the shape once published; to try
-> it now use [Trying it today](#trying-it-today-pre-alpha).
+> Published on npm as of `v0.1.0` — these commands work today.
 
 ```bash
 # One package for the Vitest wedge — it re-exports defineConfig and pulls the engine
@@ -409,8 +409,8 @@ Deliberately narrow — the wedge is "the MySQL + Vitest path, flawless." Not ye
 
 ## Trying it today (pre-alpha)
 
-Not on npm yet — so the `pnpm add`/`npx baby` commands above don't resolve. To experiment before the first
-release, work from the repo:
+`v0.1.0` is on npm, so the `pnpm add` / `baby` commands above work directly. To run the complete example
+app (or hack on babystack itself), work from the repo:
 
 ```bash
 git clone https://github.com/babystack/babystack && cd babystack
@@ -422,7 +422,7 @@ pnpm --filter users-api test
 The [`examples/users-api`](../../examples/users-api) app is the copy-paste-able, runnable proof: a real
 Express + Drizzle + MySQL API whose `supertest` suite runs against fresh, seeded, isolated real MySQL via
 babystack, with **zero babystack imports** in the tests. Read its README for the annotated walkthrough.
-Watch the repo for the first `@babystack/*` npm release.
+Or just `pnpm add -D @babystack/vitest` — `v0.1.0` is on npm.
 
 ## Where this is going
 

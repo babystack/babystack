@@ -16,6 +16,7 @@ promise — see the note at the bottom.
 
 ## Shipped today
 
+**`v0.1.0` is published on npm** (`babystack` + `@babystack/{core,docker,mysql,runtime,vitest,cli}`).
 Everything below is implemented and covered by tests (unit + real-Docker integration in CI).
 
 ### The Vitest wedge — fresh, seeded, isolated real MySQL

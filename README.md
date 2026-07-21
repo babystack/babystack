@@ -13,15 +13,17 @@ _Every test run and every AI-agent session gets its own private, seeded, disposa
 services your app uses — spun up in Docker, injected as env vars, thrown away after. No shared dev DB, no
 mocks, no lifecycle code in your tests._
 
+[![npm](https://img.shields.io/npm/v/babystack)](https://www.npmjs.com/package/babystack)
 [![CI](https://github.com/babystack/babystack/actions/workflows/ci.yml/badge.svg)](https://github.com/babystack/babystack/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 ![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)
 
 </div>
 
-> [!WARNING]
-> **Pre-alpha / scaffold.** The interfaces and the MySQL + Vitest path are under active construction.
-> Not yet published to npm. Watch the repo — the first working release is the MySQL-on-Vitest wedge.
+> [!NOTE]
+> **Pre-alpha — `v0.1.0` is live on npm.** The MySQL + Vitest wedge and the `baby` CLI are published and
+> installable today (`pnpm add -D @babystack/vitest`). Interfaces may still shift before `1.0` — issues and
+> feedback are very welcome.
 
 ## Table of contents
 
