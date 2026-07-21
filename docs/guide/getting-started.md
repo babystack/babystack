@@ -1,7 +1,7 @@
 # Getting started
 
-> **How you use babystack** — the MySQL + Vitest wedge, end to end. For where it's headed next, see the
-> [roadmap](../ROADMAP.md).
+> **How you use babystack** — the MySQL + Vitest wedge, end to end. Also on the
+> [site](https://babystack.pages.dev). For where it's headed next, see the [roadmap](../ROADMAP.md).
 >
 > ⚠️ **Pre-alpha — but published.** `v0.1.0` is live on npm, so the `pnpm add` and `baby` commands below
 > work today. The engine, the Vitest wedge, the `examples/` app, and the `baby` CLI

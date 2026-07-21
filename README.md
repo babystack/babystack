@@ -18,6 +18,8 @@ mocks, no lifecycle code in your tests._
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 ![Status: pre-alpha](https://img.shields.io/badge/status-pre--alpha-orange)
 
+**[babystack.pages.dev](https://babystack.pages.dev)** · [Getting started](./docs/guide/getting-started.md) · [npm](https://www.npmjs.com/package/babystack)
+
 </div>
 
 > [!NOTE]
@@ -121,8 +123,8 @@ Set up once per repo; after that it's just `pnpm test`, everywhere:
 _② (the Vitest wedge), ③ (`baby wake`/`home`/`sleep`) and ⑤ (the agent `baby reset` loop) all work today —
 see the roadmap for what's next (warm-pool speed, more engines)._
 
-Visual walkthroughs live in [`site/`](./site/): **[how you use it](./site/usage.html)** ·
-**[the internals](./site/design.html)**. The written versions: [getting-started](./docs/guide/getting-started.md) and the full
+Visual walkthroughs are on the site — **[babystack.pages.dev](https://babystack.pages.dev)**: **[how you use it](https://babystack.pages.dev/usage)** ·
+**[the internals](https://babystack.pages.dev/design)**. The written versions: [getting-started](./docs/guide/getting-started.md) and the full
 [architecture](./docs/guide/architecture.md) (the two axes + the `EngineAdapter` seam).
 
 ## How it works
