@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "allowJs": true
   },
-  "include": ["*.ts", "*.cjs", "*.mjs"],
-  "exclude": ["node_modules", "**/dist"]
+  "include": ["scripts/**/*", "*.ts", "*.cts", "*.mts", "*.js", "*.cjs", "*.mjs"],
+  "exclude": ["node_modules", "**/dist", "**/coverage"]
 }
