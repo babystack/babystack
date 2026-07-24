@@ -9,6 +9,7 @@ engineering handbook shared across the maintainer's projects; the essential rule
 - [Setup](#setup)
 - [Branching & commits](#branching--commits)
 - [The adversarial review gate](#the-adversarial-review-gate)
+- [Releasing](#releasing)
 - [Design principles you must not break](#design-principles-you-must-not-break)
 
 ## The bar
@@ -45,6 +46,27 @@ Before merging any phase or sub-phase, run an adversarial review (parallel revie
 correctness end-to-end · bug-hunt · security · scale/perf · code-quality/standards · testing-quality ·
 docs/spec-fidelity · anything-else). Fix real findings in the same change or log them (severity +
 deferral) in [docs/ROADMAP.md](./docs/ROADMAP.md).
+
+## Releasing
+
+Releases are **automated via Changesets + GitHub Actions** — no manual `npm publish`, no OTP, no
+long-lived `NPM_TOKEN`. Publishing authenticates with **npm Trusted Publishing (OIDC)** and attaches a
+signed provenance attestation. The flow:
+
+1. **Every user-facing PR** adds a changeset (`pnpm changeset`) describing the bump.
+2. On merge to `main`, [`.github/workflows/release.yml`](./.github/workflows/release.yml) keeps a
+   **"Version Packages" PR** open that applies the pending changesets (version bumps + CHANGELOG).
+3. **Merging that Version Packages PR** is what ships a release: the workflow detects a public package
+   whose local version is ahead of the registry, pauses on the `release` Environment for a manual
+   approval, then runs `pnpm run release` (`turbo run build && changeset publish`) — publishing only the
+   bumped packages, tokenlessly, and pushing git tags + a GitHub Release each.
+
+**One-time setup (maintainer, done outside the repo):**
+
+- **npm** → each public package (`babystack`, `@babystack/{core,cli,docker,mysql,runtime,vitest}`) →
+  Settings → **Trusted Publisher**: GitHub Actions, repo `babystack/babystack`, workflow `release.yml`.
+- **GitHub** → Settings → **Environments** → create `release` with the maintainer as a **required
+  reviewer** (that reviewer is the approval gate).
 
 ## Design principles you must not break
 
