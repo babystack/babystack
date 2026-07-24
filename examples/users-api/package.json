@@ -11,7 +11,7 @@
     "db:seed": "node db/seed.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
     "mysql2": "^3.11.0"
   },
