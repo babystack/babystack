@@ -49,24 +49,12 @@ deferral) in [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 ## Releasing
 
-Releases are **automated via Changesets + GitHub Actions** — no manual `npm publish`, no OTP, no
-long-lived `NPM_TOKEN`. Publishing authenticates with **npm Trusted Publishing (OIDC)** and attaches a
-signed provenance attestation. The flow:
+Releases are **automated, tokenless, and human-gated** — you never run `npm publish` by hand. In your
+feature PR, add a changeset (`pnpm changeset`); merging the resulting "Version Packages" PR triggers a
+gated publish via **npm Trusted Publishing (OIDC)** with provenance.
 
-1. **Every user-facing PR** adds a changeset (`pnpm changeset`) describing the bump.
-2. On merge to `main`, [`.github/workflows/release.yml`](./.github/workflows/release.yml) keeps a
-   **"Version Packages" PR** open that applies the pending changesets (version bumps + CHANGELOG).
-3. **Merging that Version Packages PR** is what ships a release: the workflow detects a public package
-   whose local version is ahead of the registry, pauses on the `release` Environment for a manual
-   approval, then runs `pnpm run release` (`turbo run build && changeset publish`) — publishing only the
-   bumped packages, tokenlessly, and pushing git tags + a GitHub Release each.
-
-**One-time setup (maintainer, done outside the repo):**
-
-- **npm** → each public package (`babystack`, `@babystack/{core,cli,docker,mysql,runtime,vitest}`) →
-  Settings → **Trusted Publisher**: GitHub Actions, repo `babystack/babystack`, workflow `release.yml`.
-- **GitHub** → Settings → **Environments** → create `release` with the maintainer as a **required
-  reviewer** (that reviewer is the approval gate).
+The full map — the step-by-step, the one-time npm/GitHub setup, the break-glass path, and
+troubleshooting — is in **[RELEASING.md](./RELEASING.md)**.
 
 ## Design principles you must not break
 
