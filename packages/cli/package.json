@@ -49,7 +49,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "mysql2": "^3.11.0",
+    "mysql2": "^3.23.1",
     "tsup": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

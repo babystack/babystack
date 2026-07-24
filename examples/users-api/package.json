@@ -11,9 +11,9 @@
     "db:seed": "node db/seed.mjs"
   },
   "dependencies": {
-    "drizzle-orm": "^0.36.4",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.1.0",
-    "mysql2": "^3.11.0"
+    "mysql2": "^3.23.1"
   },
   "devDependencies": {
     "@babystack/core": "workspace:*",
@@ -21,7 +21,7 @@
     "@babystack/vitest": "workspace:*",
     "@types/express": "^5.0.0",
     "@types/node": "catalog:",
-    "@types/supertest": "^6.0.2",
+    "@types/supertest": "^7.2.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "catalog:",
