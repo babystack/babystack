@@ -405,7 +405,10 @@ Deliberately narrow — the wedge is "the MySQL + Vitest path, flawless." Not ye
   your full seed data in plaintext — don't commit it.
 - **Fidelity caveats.** It's a real `mysql:8.4`, but a fresh single host connected as **root** (not prod
   grants — can mask permission bugs), with no replication, and possibly a different version/`sql_mode`/
-  collation than prod. Pin `image` (and later a `my.cnf`) to match production.
+  collation than prod. Pin `image` (and later a `my.cnf`) to match production. babystack also tests against
+  the **open-source engine, not a managed cloud variant** — Aurora, DocumentDB, and Amazon Keyspaces are
+  API-compatible but diverge in behavior, so a green babystack run is not a guarantee about a managed
+  service's proprietary internals.
 
 ## Trying it today (pre-alpha)
 

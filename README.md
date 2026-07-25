@@ -174,6 +174,23 @@ over real engines) powers two surfaces:
 - **Delegate** to LocalStack for AWS services with no real local engine (Lambda, SNS, SQS, …).
 - **Never emulate** — we never reimplement MySQL/S3/AWS ourselves. A fake gives false confidence.
 
+## Where babystack sits (the fidelity spectrum)
+
+Ways to test against a backend, worst → best fidelity — and what each one still can't catch:
+
+| Layer                                         | What it is                                       | Fidelity                 | Cost / creds           | Blind spot                                                             | Examples                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------ | ------------------------ | ---------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| **1. Mocks / stubs**                          | fake in-process                                  | lowest                   | none                   | all real behavior — constraints, transactions, SQL errors, concurrency | hand-rolled, MSW                                                                                                       |
+| **2. Emulators**                              | reimplement the cloud API locally                | medium (can drift)       | none, offline          | engine + managed quirks the reimplementation misses                    | LocalStack, Azurite, fake-gcs; vendor-official (higher fidelity): DynamoDB Local, Cosmos / Spanner / Pub-Sub emulators |
+| **3. Real OSS engine, local — babystack**     | run the actual engine, seeded + disposable       | high (to the OSS engine) | none, offline          | managed-variant divergence (Aurora ≠ Postgres, DocumentDB ≠ Mongo)     | real MySQL/Postgres/Redis/Mongo in Docker                                                                              |
+| **4. Real managed service, ephemeral**        | spin the actual managed service, tear down after | highest                  | $$, real creds, online | slow, costly; needs an account + orphan-resource cleanup               | Terratest, ephemeral-env platforms                                                                                     |
+| **5. Real managed service, shared (staging)** | the actual service, long-lived                   | highest                  | $$, creds              | not isolated or disposable; shared-state flakiness                     | your staging account                                                                                                   |
+
+babystack lives at **layer 3** — the real engine, locally, seeded and disposable — and delegates to **layer
+2** (LocalStack, DynamoDB Local, …) for cloud services with no local engine. It deliberately does **not** do
+layer 4: no cloud account, no credentials, no bill. The tradeoff is honest — layer 3 tests your app against
+the real **open-source** engine, not a managed variant's proprietary internals (see below).
+
 ## Status & roadmap
 
 Pre-alpha. **The Vitest wedge, the `baby` CLI + agent data-plane, and conservative cache invalidation all
