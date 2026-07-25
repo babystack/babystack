@@ -56,6 +56,6 @@
     "vitest": "catalog:"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,cjs,mjs,json,md,yml,yaml}": "prettier --write"
+    "*.{ts,tsx,js,cjs,mjs,json,md,yml,yaml,html,css}": "prettier --write"
   }
 }
