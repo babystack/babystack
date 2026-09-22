@@ -55,7 +55,8 @@ export function compareSets(published, expectedNames) {
 
 const [publishedJson, expectedNames] = process.argv.slice(2)
 
-// Imported by the test suite; only the block below runs when invoked directly.
+// `tests/scripts/verify-published.test.mjs` imports `compareSets`; only the block below runs
+// when this file is invoked directly.
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 
 let published = []

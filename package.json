@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "A fresh, local baby of your production backend for every test run and AI-agent session — real MySQL, seeded, disposable, zero test-code plumbing.",
+  "description": "A fresh, local baby of your production backend for every test run and AI-agent session \u2014 real MySQL, seeded, disposable, zero test-code plumbing.",
   "license": "Apache-2.0",
   "author": "Sharvil Kadam",
   "homepage": "https://github.com/babystack/babystack#readme",
@@ -30,7 +30,9 @@
     "check": "pnpm run lint && pnpm run format:check && pnpm run typecheck && pnpm run test && pnpm run test:release && pnpm run build && pnpm run smoke && pnpm run check:release",
     "smoke": "node scripts/smoke.mjs",
     "check:release": "node scripts/check-release.mjs",
-    "test:release": "node --test scripts/*.test.mjs",
+    "audit:release": "node scripts/audit-release.mjs --level=high",
+    "verify:tarballs": "node scripts/verify-tarballs.mjs",
+    "test:release": "node --test tests/scripts/*.test.mjs",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "turbo run build && changeset publish",
@@ -39,11 +41,11 @@
   "devDependencies": {
     "@babystack/core": "workspace:*",
     "@babystack/vitest": "workspace:*",
-    "babystack": "workspace:*",
     "@changesets/cli": "catalog:",
     "@eslint/js": "catalog:",
     "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "babystack": "workspace:*",
     "dependency-cruiser": "catalog:",
     "eslint": "catalog:",
     "husky": "catalog:",
@@ -55,7 +57,8 @@
     "typescript-eslint": "catalog:",
     "typescript-next": "npm:typescript@^7.0.0",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "yaml": "^2.9.1"
   },
   "lint-staged": {
     "*.{ts,tsx,js,cjs,mjs,json,md,yml,yaml}": "prettier --write"

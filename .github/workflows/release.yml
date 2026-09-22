@@ -4,7 +4,7 @@ name: Release
 # there is NO long-lived NPM_TOKEN. Three jobs:
 #   • prepare        — decides whether a publish is due (from the PRISTINE commit, see below), then keeps
 #                      the "Version Packages" PR current and verifies the approval gate exists. Ungated.
-#   • publish        — behind the `release` Environment (manual approval). Re-runs the COMPLETE gate against
+#   • publish        — behind the `release` Environment (manual approval). Re-runs the Tier-1 gate against
 #                      the exact commit being published, refuses on any pre-flight condition, publishes
 #                      tokenlessly with provenance, then verifies from the registry that it really landed.
 #   • github-release — tags and cuts the GitHub Releases. Runs only after `publish` succeeds.
@@ -13,8 +13,8 @@ name: Release
 #   1. npmjs.com → each published package → Trusted Publisher: GitHub Actions, repo babystack/babystack,
 #      workflow `release.yml`, environment `release`. A Trusted Publisher is a PER-PACKAGE setting and
 #      cannot be bound to a name that has never been published, so a brand-new name must be published by
-#      hand once first. There is NO unauthenticated way to read whether a binding exists, so no gate below
-#      can check it — it is a by-eye checklist item, per name.
+#      hand once first. Reading a binding needs an authenticated maintainer (`npm trust list <package>`),
+#      which nothing in CI has — so no gate below can check it, and it stays a by-eye item, per name.
 #   2. GitHub → Settings → Environments → `release`, with the maintainer as a REQUIRED REVIEWER.
 #      `environment: release` on its own is only a NAME: GitHub auto-creates a referenced environment that
 #      does not exist, WITHOUT protection rules, so a missing environment does not fail the job — it
@@ -339,6 +339,22 @@ jobs:
           [ "$fail" -eq 0 ] || exit 1
           echo "expected=${will_publish[*]}" >> "$GITHUB_OUTPUT"
           echo "pre-flight OK — will publish: ${will_publish[*]}"
+
+      # The one gate whose verdict changes with no commit at all: an advisory published against a runtime
+      # dependency after `main` went green makes this tree newly vulnerable without touching a byte of it.
+      # Re-running the rest of the gate on the release commit and inheriting a days-old audit leaves exactly
+      # that hole. Scoped to advisories that reach a PUBLISHED package — `examples/` never ships, and a gate
+      # that fails for something the release cannot fix is one people learn to bypass.
+      - name: Audit what actually ships
+        id: audit
+        run: node scripts/audit-release.mjs --level=high
+
+      # Hold the PACKED ARTIFACT to the same standard as the source. dist/ is gitignored, so source- and
+      # history-based scanners cannot see it at all — and the sourcemaps carry every source comment verbatim
+      # into the tarball via `sourcesContent`. A comment stripped from the emitted JS still ships.
+      - name: Leak-scan the packed tarballs
+        id: tarballs
+        run: node scripts/verify-tarballs.mjs
 
       # `pnpm run release` = turbo build + `changeset publish`. npm authenticates via the OIDC token (no
       # NPM_TOKEN) and NPM_CONFIG_PROVENANCE=true attaches a signed provenance attestation.

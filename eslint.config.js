@@ -26,12 +26,11 @@ export default tseslint.config(
         exports: 'writable',
         __dirname: 'readonly',
         __filename: 'readonly',
-        // Node globals the hand-maintained list above predates: `fetch` landed in Node 18, and the
-        // timers are globals in every Node. scripts/check-release.mjs and scripts/verify-published.mjs
-        // use both to probe the GitHub and npm registry APIs.
+        // Node globals the hand-maintained list above predates: `fetch` landed in Node 18, and
+        // `setTimeout` is a global in every Node. scripts/check-release.mjs and
+        // scripts/verify-published.mjs use both to probe the GitHub and npm registry APIs.
         fetch: 'readonly',
         setTimeout: 'readonly',
-        clearTimeout: 'readonly',
       },
     },
   },

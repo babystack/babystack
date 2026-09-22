@@ -232,18 +232,40 @@ async function main(argv, root) {
     // with no privileged token and lets a maintainer run it locally.
     if (process.env.GITHUB_TOKEN) headers.authorization = `Bearer ${process.env.GITHUB_TOKEN}`
 
+    /**
+     * Retry a throttle or a transient 5xx before giving a verdict.
+     *
+     * Failing closed is right, but this also runs on EVERY pull request — so without a backoff, one
+     * GitHub API blip turns into a red gate on unrelated work, and a gate that goes red for reasons
+     * nobody caused is one people learn to re-run without reading. A 404 and a 200 are both answers, so
+     * neither is retried; 403, 429 and 5xx are not answers.
+     */
+    async function probe(url) {
+      let last
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        try {
+          const res = await fetch(url, { headers })
+          if (res.status === 200 || res.status === 404) return res
+          last = res
+        } catch (err) {
+          last = err
+        }
+        if (attempt < 4) await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)))
+      }
+      if (last instanceof Error) throw last
+      return last
+    }
+
     let status, body, repoExists
     try {
-      const res = await fetch(`https://api.github.com/repos/${slug}/environments/${ENVIRONMENT}`, {
-        headers,
-      })
+      const res = await probe(`https://api.github.com/repos/${slug}/environments/${ENVIRONMENT}`)
       status = res.status
       if (res.ok) body = await res.json()
       if (status === 404) {
         // A 404 has two causes needing different fixes — missing environment, or a wrong slug. Both fail
         // closed, but sending someone to configure a setting on a page that isn't there wastes the signal.
         try {
-          repoExists = (await fetch(`https://api.github.com/repos/${slug}`, { headers })).ok
+          repoExists = (await probe(`https://api.github.com/repos/${slug}`)).ok
         } catch {
           /* leave unknown; the message degrades to the ambiguous form */
         }

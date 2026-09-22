@@ -23,9 +23,9 @@ import {
   parsePublishedPackages,
   readManifests,
   repoSlugFrom,
-} from './check-release.mjs'
+} from '../../scripts/check-release.mjs'
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const WORKFLOW = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
 
 describe('parsePublishedPackages — the formatting contract on release.yml', () => {
@@ -73,7 +73,8 @@ describe('comparePackages — both directions', () => {
   })
 
   test('accepts a private package that is deliberately unlisted (the look-alike)', () => {
-    // @onadiet/testkit's shape. The guard must NOT fire, and must not do so by skipping private packages.
+    // A workspace package that exists only to serve the others' tests. The guard must NOT fire — and must
+    // not achieve that by skipping private packages, which would blind it to the accident it hunts.
     assert.deepEqual(comparePackages(['a'], [m('a'), m('@s/testkit', true)]), [])
   })
 
@@ -175,9 +176,10 @@ describe('repoSlugFrom', () => {
   test('parses the real manifest forms, including a hyphenated org', () => {
     const cases = {
       'git+https://github.com/babystack/babystack.git': 'babystack/babystack',
-      'git+https://github.com/on-a-diet/onadiet.git': 'on-a-diet/onadiet',
-      'git@github.com:on-a-diet/onadiet.git': 'on-a-diet/onadiet',
-      'https://github.com/on-a-diet/onadiet': 'on-a-diet/onadiet',
+      // A hyphenated org, the form that would break a lazier regex.
+      'git+https://github.com/some-org/some-repo.git': 'some-org/some-repo',
+      'git@github.com:some-org/some-repo.git': 'some-org/some-repo',
+      'https://github.com/some-org/some-repo': 'some-org/some-repo',
     }
     for (const [url, want] of Object.entries(cases)) {
       assert.equal(repoSlugFrom({}, { repository: { url } }), want, url)
