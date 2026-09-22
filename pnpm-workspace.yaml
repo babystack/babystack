@@ -10,20 +10,37 @@ packages:
 #   supports (typescript-eslint peers `typescript <6.1.0`). The native TS 7 runs as a forward-compat
 #   `--noEmit` gate via the `typescript-next` alias in the root package.json (`typecheck:next`, folded
 #   into `typecheck`). Collapse to TS 7 primary once typescript-eslint supports it — see the roadmap.
-#   @types/node stays on 22 to match the Node 22 build target (engines: >=22; Node 20 is EOL).
+#   @types/node stays on 22 to match the Node 22 build target (engines: >=22; Node 20 is EOL). Taking a newer
+#   major would type-check calls to APIs that do not exist on the oldest runtime this repo supports, and they
+#   would fail there at runtime rather than at compile time. Move it with the floor, never ahead of it.
 catalog:
   typescript: ~6.0.3
   tsup: ^8.5.1
-  vite: ^7.3.6
-  vitest: ^4.1.10
-  '@vitest/coverage-v8': ^4.1.10
-  '@types/node': ^22.10.5
-  eslint: ^10.7.0
+  vite: ^8.3.0
+  vitest: ^5.0.1
+  '@vitest/coverage-v8': ^5.0.1
+  '@types/node': ^22.20.2
+  eslint: ^10.10.0
   '@eslint/js': ^10.0.1
-  typescript-eslint: ^8.64.0
-  prettier: ^3.9.5
-  dependency-cruiser: ^18.1.0
-  turbo: ^2.10.5
-  '@changesets/cli': ^2.31.0
+  typescript-eslint: ^8.70.0
+  prettier: ^3.9.6
+  dependency-cruiser: ^18.3.1
+  turbo: ^2.10.13
+  '@changesets/cli': ^3.0.3
   husky: ^9.1.7
-  lint-staged: ^17.0.8
+  lint-staged: ^17.5.1
+
+# Supply-chain cooldown: never resolve a version published less than 7 days ago. A compromised release is
+# usually caught and yanked within days, so a short delay buys most of the protection for almost none of the
+# freshness. 7 days matches the handbook's reference project; pnpm's own default is 1 day. In MINUTES.
+# pnpm 12 rejects an unrecognised key here rather than ignoring it, so a misspelling cannot silently drop
+# this policy — which is exactly the failure a cooldown setting would otherwise be most prone to.
+minimumReleaseAge: 10080
+
+# Dependency install scripts are OFF unless listed here (pnpm 11+ fails the install on any that are neither
+# allowed nor denied). esbuild's postinstall only re-verifies — and if missing, downloads — the native binary
+# it already ships as an optional per-platform package, so it is denied: no third-party code runs at install
+# time for a job this repo does not need. If a platform ever lacks its optional binary, the build fails
+# loudly at the first esbuild call rather than a script quietly fetching one.
+allowBuilds:
+  esbuild: false

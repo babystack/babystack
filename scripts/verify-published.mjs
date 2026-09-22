@@ -55,7 +55,7 @@ export function compareSets(published, expectedNames) {
 
 const [publishedJson, expectedNames] = process.argv.slice(2)
 
-// `tests/scripts/verify-published.test.mjs` imports `compareSets`; only the block below runs
+// `tests/scripts/release-scripts.test.mjs` imports `compareSets`; only the block below runs
 // when this file is invoked directly.
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
 
