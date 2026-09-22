@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "A fresh, local baby of your production backend for every test run and AI-agent session \u2014 real MySQL, seeded, disposable, zero test-code plumbing.",
+  "description": "A fresh, local baby of your production backend for every test run and AI-agent session — real MySQL, seeded, disposable, zero test-code plumbing.",
   "license": "Apache-2.0",
   "author": "Sharvil Kadam",
   "homepage": "https://github.com/babystack/babystack#readme",

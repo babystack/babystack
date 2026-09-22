@@ -158,6 +158,26 @@ export function repoSlugFrom(env, rootManifestJson) {
 }
 
 /**
+ * Refuse a manifest whose text carries `\uXXXX` escapes.
+ *
+ * Valid JSON, invisible to prettier, and silently produced by any tool that re-serialises a manifest with
+ * ASCII-only output — `JSON.stringify` is fine, but Python's `json.dumps` escapes non-ASCII by default, and
+ * that is exactly how an em-dash in this repo's own description became the six literal characters
+ * `\u2014`. It matters because `description` is the text on the package's registry page: the mangling
+ * ships, and nothing else in the pipeline looks at it.
+ */
+export function findEscapedManifests(root, paths) {
+  const bad = []
+  for (const rel of paths) {
+    const file = join(root, rel)
+    if (!existsSync(file)) continue
+    const hits = [...new Set(readFileSync(file, 'utf8').match(/\\u[0-9a-fA-F]{4}/g) ?? [])]
+    if (hits.length > 0) bad.push({ path: rel, hits })
+  }
+  return bad
+}
+
+/**
  * Every workspace manifest under packages/.
  *
  * Skips a directory with no package.json and reports a malformed one by PATH rather than throwing a raw
@@ -219,6 +239,20 @@ async function main(argv, root) {
     if (found.length === 0 && problems.length === 0) {
       ok(`PUBLISHED_PACKAGES matches the ${listed.length} publishable manifests in packages/`)
     }
+  }
+
+  const manifestPaths = [
+    'package.json',
+    ...readdirSync(join(root, 'packages'), { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => `packages/${e.name}/package.json`),
+  ]
+  for (const { path, hits } of findEscapedManifests(root, manifestPaths)) {
+    problems.push(
+      `${path} contains the literal escape(s) ${hits.join(', ')} instead of the characters they stand for. ` +
+        "Valid JSON, invisible to prettier — and `description` is the text on the package's registry page, " +
+        'so the mangling ships. Something re-serialised the manifest with ASCII-only output.',
+    )
   }
 
   if (argv.includes('--environment')) {

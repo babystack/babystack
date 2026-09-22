@@ -17,9 +17,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import {
   comparePackages,
   evaluateEnvironment,
+  findEscapedManifests,
   parsePublishedPackages,
   readManifests,
   repoSlugFrom,
@@ -212,5 +215,57 @@ describe('readManifests — reports, does not throw', () => {
     const problems = []
     assert.deepEqual(readManifests(join(ROOT, 'does-not-exist'), problems), [])
     assert.match(problems[0], /no packages\/ directory/)
+  })
+})
+
+describe('findEscapedManifests — mangled manifest metadata must not ship', () => {
+  const withFiles = (files, fn) => {
+    const dir = mkdtempSync(join(tmpdir(), 'manifest-'))
+    try {
+      for (const [rel, body] of Object.entries(files)) {
+        mkdirSync(join(dir, dirname(rel)), { recursive: true })
+        writeFileSync(join(dir, rel), body)
+      }
+      return fn(dir)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+
+  test('catches an escape a re-serialiser left behind', () => {
+    // How this happened for real: Python's json.dumps escapes non-ASCII by default, turning an em-dash in
+    // the description into the six literal characters \u2014. Valid JSON, invisible to prettier, and it is
+    // the text on the package's registry page.
+    const bad = withFiles({ 'package.json': '{"description":"a \\u2014 b"}' }, (d) =>
+      findEscapedManifests(d, ['package.json']),
+    )
+    assert.equal(bad.length, 1)
+    assert.deepEqual(bad[0].hits, ['\\u2014'])
+  })
+
+  test('does NOT fire on the real character, or on an escape inside a normal string', () => {
+    const ok = withFiles(
+      {
+        'package.json': '{"description":"a — b","homepage":"https://x/y"}',
+        'packages/core/package.json': '{"name":"@s/core","version":"1.0.0"}',
+      },
+      (d) => findEscapedManifests(d, ['package.json', 'packages/core/package.json']),
+    )
+    assert.deepEqual(ok, [])
+  })
+
+  test('skips a path that does not exist rather than throwing', () => {
+    assert.deepEqual(findEscapedManifests(ROOT, ['packages/nope/package.json']), [])
+  })
+
+  test("this repo's own manifests are clean", () => {
+    // Enumerate for real. The first version of this built the package paths with
+    // `.map(() => null).filter(Boolean)` — always empty — so it asserted only the root manifest while
+    // reading as though it covered the workspace.
+    const pkgPaths = readdirSync(join(ROOT, 'packages'), { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => `packages/${e.name}/package.json`)
+    assert.ok(pkgPaths.length > 0, 'sanity: the workspace has packages')
+    assert.deepEqual(findEscapedManifests(ROOT, ['package.json', ...pkgPaths]), [])
   })
 })
