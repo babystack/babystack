@@ -26,8 +26,12 @@ export default tseslint.config(
         exports: 'writable',
         __dirname: 'readonly',
         __filename: 'readonly',
-        // Node 18+ ships fetch as a global; scripts/check-release.mjs probes the GitHub API with it.
+        // Node globals the hand-maintained list above predates: `fetch` landed in Node 18, and the
+        // timers are globals in every Node. scripts/check-release.mjs and scripts/verify-published.mjs
+        // use both to probe the GitHub and npm registry APIs.
         fetch: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
       },
     },
   },

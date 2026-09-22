@@ -6,13 +6,14 @@
  * This script is the detector for both, so that "is the release setup still sound?" is a check rather than
  * a judgement call.
  *
- *   1. THE MANIFEST COUNT DRIFTED (offline). `release.yml` declares `EXPECTED_PACKAGES`, and every
- *      per-package guard in it refuses to run unless the `packages/*` glob matches exactly that many
- *      publishable manifests. That number is a constant in a YAML file, so nothing keeps it true: add a
- *      package and the guards go on checking the old count, and the new name — which has no npm Trusted
- *      Publisher, because it has never been published — reaches `changeset publish` unguarded. This check
- *      is what makes adding a package fail HERE, in CI, where the fix is to bootstrap the name, instead of
- *      failing mid-publish where some of the family is already on the registry, immutably.
+ *   1. THE PACKAGE SET DRIFTED (offline). `release.yml` declares `PUBLISHED_PACKAGES` — the names this
+ *      pipeline is expected to publish — and every per-package guard in it refuses to run without that
+ *      list. It is a constant in a YAML file, so nothing keeps it true: add a package and the guards go on
+ *      checking the old set, and the new name — which has no npm Trusted Publisher, because it has never
+ *      been published — reaches `changeset publish` unguarded. Checking NAMES rather than a count also
+ *      catches a rename, and one package removed while another is added, which leave a count unchanged.
+ *      This check is what makes adding a package fail HERE, in CI, where the fix is to bootstrap the name,
+ *      instead of failing mid-publish where some of the family is already on the registry, immutably.
  *
  *   2. THE APPROVAL GATE IS NOT ACTUALLY THERE (--environment, needs network). The publish job declares
  *      `environment: release`, which reads like a gate but is only a NAME. GitHub's documented behaviour is
@@ -67,42 +68,51 @@ function manifests() {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
-// ── 1. EXPECTED_PACKAGES agrees with the workspace ────────────────────────────────────────────────
+// ── 1. PUBLISHED_PACKAGES agrees with the workspace ──────────────────────────────────────────────
 const workflow = readFileSync(WORKFLOW, 'utf8')
 
 // A single top-level scalar, so a regex reads it exactly as YAML would — no parser needed, and no
-// dependency that could itself drift. Anchored to the line start to avoid matching the many comment
-// mentions of the name below it.
-const declared = /^ {2}EXPECTED_PACKAGES: (\d+)$/m.exec(workflow)
+// dependency that could itself drift. Anchored to the line start to avoid the comment mentions above it.
+const declared = /^ {2}PUBLISHED_PACKAGES: '([^']*)'$/m.exec(workflow)
 if (!declared) {
   fail(
-    'release.yml does not declare `EXPECTED_PACKAGES` at the workflow level. Every per-package guard in ' +
+    'release.yml does not declare `PUBLISHED_PACKAGES` at the workflow level. Every per-package guard in ' +
       'that file refuses to run without it, so its absence disables all of them at once.',
   )
 } else {
+  const listed = declared[1].split(/\s+/).filter(Boolean)
   const all = manifests()
-  const publishable = all.filter((m) => !m.private)
-  const expected = Number(declared[1])
-  if (expected !== publishable.length) {
-    const priv = all.filter((m) => m.private)
+  const publishable = all.filter((m) => !m.private).map((m) => m.name)
+
+  // Both directions matter. A name listed but not publishable would be dropped silently by
+  // `changeset publish`; a publishable package not listed has almost certainly never been published, so
+  // no Trusted Publisher can exist for it and the tokenless pipeline cannot create one.
+  const missing = listed.filter((n) => !publishable.includes(n))
+  const unlisted = publishable.filter((n) => !listed.includes(n))
+
+  if (missing.length > 0) {
+    const priv = all.filter((m) => m.private).map((m) => m.name)
     fail(
-      `release.yml declares EXPECTED_PACKAGES: ${expected}, but packages/ holds ${publishable.length} ` +
-        `publishable manifest(s): ${publishable.map((m) => m.name).join(', ')}.` +
-        (priv.length > 0
-          ? ` (Not counted, \`private: true\`: ${priv.map((m) => m.name).join(', ')}.)`
-          : '') +
-        '\n       If a package was ADDED: its npm name almost certainly does not exist yet, and a Trusted ' +
-        'Publisher cannot be bound to a name that has never been published. Create the name first, bind its ' +
-        'Trusted Publisher on npmjs.com, and only then raise this number — otherwise the release publishes ' +
-        'the packages that do exist and fails on the new one, leaving a partial, immutable release.' +
-        '\n       If a package went `private: true`: `changeset publish` SKIPS it silently and exits 0, so ' +
-        'the release would go green having published less than it claimed. Restore it, or lower this number ' +
-        'deliberately.',
+      `release.yml lists ${missing.join(', ')} in PUBLISHED_PACKAGES, but no publishable manifest under ` +
+        `packages/ declares that name.` +
+        (priv.some((n) => missing.includes(n))
+          ? ' It carries `private: true` — `changeset publish` drops private packages with no log line ' +
+            'and exits 0, so the release would go green having shipped less than it claims.'
+          : ' It was renamed, moved or removed. A short family is a PARTIAL publish, not a smaller release.'),
     )
-  } else {
-    ok(
-      `EXPECTED_PACKAGES (${expected}) matches the ${publishable.length} publishable manifests in packages/`,
+  }
+  if (unlisted.length > 0) {
+    fail(
+      `${unlisted.join(', ')} is publishable but is not in release.yml's PUBLISHED_PACKAGES.\n` +
+        '       If this package is NEW: its npm name almost certainly does not exist yet, and a Trusted ' +
+        'Publisher cannot be bound to a name that has never been published. Publish the name once by hand, ' +
+        'bind its Trusted Publisher on npmjs.com, and only then add it to the list — otherwise the release ' +
+        'publishes the rest of the family concurrently and fails on this one, leaving a partial, immutable ' +
+        'release.\n       If it should never publish, mark it `private: true`.',
     )
+  }
+  if (missing.length === 0 && unlisted.length === 0) {
+    ok(`PUBLISHED_PACKAGES matches the ${publishable.length} publishable manifests in packages/`)
   }
 }
 

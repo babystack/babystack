@@ -32,7 +32,7 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
 
 ## What the automation does
 
-[`release.yml`](.github/workflows/release.yml) runs on every push to `main`, in two jobs:
+[`release.yml`](.github/workflows/release.yml) runs on every push to `main`, in three jobs:
 
 - **`prepare`** (no gate) — runs `changeset version` (via `changesets/action`) to keep the "Version
   Packages" PR current, **verifies the approval gate actually exists** (see below), then checks whether any
@@ -44,8 +44,24 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
 changeset publish`), which uploads each not-yet-published package. Authentication is the GitHub **OIDC**
   token (there is **no `NPM_TOKEN`**), and `NPM_CONFIG_PROVENANCE=true` attaches a signed provenance
   attestation. Before it publishes, it **re-runs the complete CI gate** against the exact commit being
-  released — a green `main` is necessary but not sufficient, because `main` went green on a merge commit and
-  this is the tree that becomes a tarball — and then runs the [pre-flight guards](#pre-flight-guards).
+  released, then runs the [pre-flight guards](#pre-flight-guards). Afterwards it **verifies from the registry
+  API** that every expected package really resolves at the new version _and_ carries a provenance
+  attestation — a green publish step is not proof that anything published.
+- **`github-release`** — pushes the git tags and cuts one GitHub Release per published package, with notes
+  from that package's `CHANGELOG.md`. It runs **only after `publish` succeeds**, so a Release object can
+  never describe a version that never reached npm.
+
+The re-run of the CI gate is not belt-and-braces. The "Version Packages" PR is opened by `changesets/action`
+using `GITHUB_TOKEN`, and GitHub does not start workflow runs for events raised by that token — so `ci.yml`
+does **not** run automatically on the Version PR. Merging it (the routine thing to do with a bot PR that
+"just bumps versions") would otherwise publish a tree that was never gated on a PR at all.
+
+**Why `github-release` is a separate job.** `changesets/action` injects `GITHUB_TOKEN` into the environment
+of the publish script, so every build tool and every transitive dependency lifecycle script in
+`pnpm run release` runs with whatever scopes that job holds — at the single highest-privilege moment in this
+repo's life. The publish job therefore carries **only `id-token: write`**; `contents: write` lives on this
+downstream job, which cannot publish. That is the handbook's hardening rule: keep the publish job's scopes
+minimal by moving work out of it, not by widening it.
 
 Because the gate is on `publish`, and `publish` runs only when a version is ahead of the registry, the
 approval prompt appears **only for real releases** — never for an ordinary feature merge.
@@ -63,23 +79,36 @@ approval prompt appears **only for real releases** — never for an ordinary fea
 Everything that can still be _fixed_ is checked before the one step that cannot be undone. npm tarballs are
 immutable outside a 72-hour window; every guard below is a read-only probe that costs seconds.
 
-| Guard                     | Refuses when                                                                           | Why it exists                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Manifest count**        | `packages/*/package.json` does not match `EXPECTED_PACKAGES` (7) publishable manifests | A glob that comes up short makes every per-package loop below it iterate **zero times and pass**. Too _many_ is worse: a newly added package has no npm name and therefore no Trusted Publisher, and this pipeline is tokenless — it cannot create one.                                                                                                                                       |
-| **Unbootstrapped name**   | a publishable package does not exist on the registry at all                            | A Trusted Publisher is a **per-package** setting that cannot be bound to a name that has never been published. `changeset publish` stops at the first failure, so the packages before it in the order are already on the registry, immutably, while the flagship never publishes. See [Bootstrapping a new package name](#bootstrapping-a-new-package-name).                                  |
-| **Nothing to publish**    | _every_ publishable version is already on the registry                                 | `changeset publish` **silently skips** a version that is already there and exits 0. A re-run would go green having published nothing at all — indistinguishable from success in the log. (Skipping _some_ packages is normal and correct here: Changesets bumps only what changed, so an unchanged package keeps its version and must not be republished. Only "all of them" is the failure.) |
-| **Still-private package** | a package that should publish carries `private: true`                                  | `changeset publish` skips those silently too. Caught by the manifest count, which names the offender. `@babystack/*` has no intentionally-private package today; if one is ever added, lower `EXPECTED_PACKAGES` deliberately rather than loosening the guard.                                                                                                                                |
-| **Approval gate present** | the `release` environment is missing or has no required reviewer                       | See the box above.                                                                                                                                                                                                                                                                                                                                                                            |
+| Guard                     | Refuses when                                                                                  | Why it exists                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Package set**           | the publishable manifests under `packages/` are not exactly the names in `PUBLISHED_PACKAGES` | A glob that comes up short makes every per-package loop below it iterate **zero times and pass**. Naming the packages rather than counting them catches what a count cannot: a rename, or one package removed while another is added. A package present but _unlisted_ is refused because its npm name has almost certainly never been published, so no Trusted Publisher can exist for it and this tokenless pipeline cannot create one. |
+| **Unbootstrapped name**   | a publishable package does not exist on the registry at all                                   | A Trusted Publisher is a **per-package** setting that cannot be bound to a name that has never been published. `changeset publish` stops at the first failure, so the packages before it in the order are already on the registry, immutably, while the flagship never publishes. See [Bootstrapping a new package name](#bootstrapping-a-new-package-name).                                                                              |
+| **Nothing to publish**    | _every_ publishable version is already on the registry                                        | `changeset publish` **silently skips** a version that is already there and exits 0. A re-run would go green having published nothing at all — indistinguishable from success in the log. (Skipping _some_ packages is normal and correct here: Changesets bumps only what changed, so an unchanged package keeps its version and must not be republished. Only "all of them" is the failure.)                                             |
+| **Still-private package** | a listed package carries `private: true`                                                      | `changeset publish` filters private packages out with **no log line at all** and exits 0, while `changeset version` still bumps them — so the Version PR looks complete and the release ships the rest of the family depending on a package that never went up. A package that should _never_ publish is left out of `PUBLISHED_PACKAGES` _and_ marked private; the guard checks both, so neither alone can hide a mistake.               |
+| **Missing release notes** | a package about to publish has no `CHANGELOG.md` section for its version                      | A changelog is a two-line edit; an npm tarball is immutable outside a 72-hour window. Checked _before_ the publish rather than in `github-release`, where it would surface with nothing left to do about it.                                                                                                                                                                                                                              |
+| **Approval gate present** | the `release` environment is missing or has no required reviewer                              | See the box above.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 Both registry probes **fail closed**. `npm view` exits non-zero for a missing name _and_ for a 5xx, a rate
 limit or a timeout — so the guards classify on the error text and treat **only a clean 404** as "not
 published". Anything else refuses rather than guesses.
 
-`scripts/check-release.mjs` keeps `EXPECTED_PACKAGES` honest: it asserts the number still equals the real
-workspace count and runs in CI on every PR, so **adding a package fails there** — where the fix is to
-bootstrap its name — instead of failing mid-release with half the family already published. Run it yourself
-with `pnpm run check:release` (offline) or `node scripts/check-release.mjs --environment` (also checks the
-GitHub environment).
+`scripts/check-release.mjs` keeps `PUBLISHED_PACKAGES` honest: it cross-checks the list against the real
+workspace **in both directions** and runs in CI on every PR, so **adding a package fails there** — where the
+fix is to bootstrap its name — instead of failing mid-release with half the family already published. Run it
+yourself with `pnpm run check:release` (offline) or `node scripts/check-release.mjs --environment` (also
+checks the GitHub environment).
+
+**One ordering detail is load-bearing.** The "is a publish due?" check runs _before_ `changesets/action`,
+because that action's version mode rewrites every `packages/*/package.json` in the working tree. A check
+placed after it reads the **bumped** versions, so an ordinary feature merge that merely adds a changeset
+looks like a pending release: the approval prompt fires, and the gate's whole value is that the prompt means
+something.
+
+**Why the family is published concurrently, and what that costs.** `changeset publish` publishes up to ten
+packages at once rather than in dependency order, so a transient failure on one does not stop the others —
+they land immutably while it does not. Cross-package dependencies use `workspace:^` (not `workspace:*`) so
+that pnpm publishes a **caret** range: a straggler can then be recovered with a patch bump, which an exact
+pin would not admit.
 
 ## One-time setup
 
@@ -134,8 +163,8 @@ The order is fixed:
 3. **Bind its Trusted Publisher** on npmjs.com → the package → Settings → Trusted Publisher: GitHub Actions,
    repo `babystack/babystack`, workflow `release.yml`, environment `release`. Set publishing access to
    **"Require two-factor authentication and disallow tokens"** while you are there.
-4. **Raise `EXPECTED_PACKAGES`** in `.github/workflows/release.yml` to the new publishable count. CI goes
-   green again, and the package releases with the family from then on.
+4. **Add the name to `PUBLISHED_PACKAGES`** in `.github/workflows/release.yml`. CI goes green again, and the
+   package releases with the family from then on.
 
 Two traps that cost the sibling projects real time, both of which apply to step 2:
 
@@ -197,9 +226,9 @@ Prefer the automated flow; this path exists so a broken pipeline never blocks a 
   sense that nothing _incorrect_ is published — but `changeset publish` stops at the first failure, so
   anything published before it in the order is already on the registry and cannot be unpublished. Re-run
   after fixing; the already-published packages are skipped.
-- **"expected 7 publishable manifests, matched N"** — a package was added, removed, or flipped to
-  `private: true`. If added, follow [Bootstrapping a new package name](#bootstrapping-a-new-package-name)
-  _before_ raising `EXPECTED_PACKAGES`.
+- **"is publishable but is not in PUBLISHED_PACKAGES"** / **"no publishable manifest declares that name"** —
+  a package was added, removed, renamed, or flipped to `private: true`. If added, follow [Bootstrapping a new package name](#bootstrapping-a-new-package-name)
+  _before_ adding it to `PUBLISHED_PACKAGES`.
 - **"X does not exist on the registry"** — same thing: the name was never published, so no Trusted Publisher
   can exist for it. Bootstrap it.
 - **"every publishable version is already on the registry"** — there is nothing to release. The Version

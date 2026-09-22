@@ -163,10 +163,10 @@ importers:
   packages/babystack:
     dependencies:
       '@babystack/cli':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../cli
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       tsup:
@@ -185,13 +185,13 @@ importers:
   packages/cli:
     dependencies:
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@babystack/docker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../docker
       '@babystack/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
     devDependencies:
       '@types/node':
@@ -231,7 +231,7 @@ importers:
   packages/docker:
     dependencies:
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@types/node':
@@ -253,10 +253,10 @@ importers:
   packages/mysql:
     dependencies:
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@babystack/docker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../docker
     devDependencies:
       '@types/node':
@@ -278,13 +278,13 @@ importers:
   packages/runtime:
     dependencies:
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@babystack/docker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../docker
       '@babystack/mysql':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../mysql
       tinyglobby:
         specifier: ^0.2.17
@@ -309,14 +309,14 @@ importers:
   packages/vitest:
     dependencies:
       '@babystack/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@babystack/runtime':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../runtime
     devDependencies:
       '@babystack/docker':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../docker
       '@types/node':
         specifier: 'catalog:'
