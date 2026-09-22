@@ -26,6 +26,8 @@ export default tseslint.config(
         exports: 'writable',
         __dirname: 'readonly',
         __filename: 'readonly',
+        // Node 18+ ships fetch as a global; scripts/check-release.mjs probes the GitHub API with it.
+        fetch: 'readonly',
       },
     },
   },

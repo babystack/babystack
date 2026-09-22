@@ -36,6 +36,14 @@ jobs:
       - run: pnpm run test
       - run: pnpm run build
       - run: pnpm run smoke
+      # The release setup is config that lives OUTSIDE this repo's diff — the `release` GitHub environment
+      # and its required reviewer. Nothing in a PR shows when they disappear, and the cost of noticing at
+      # release time is an unapproved publish to npm, which cannot be taken back. Checking it here means
+      # drift surfaces within a day, on an ordinary PR, instead of at the one moment it matters.
+      # `--environment` reads the public environments API; the token only raises the rate limit.
+      - run: node scripts/check-release.mjs --environment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Tier 2 — real-Docker integration tests. Separate job: Linux runners ship Docker, so the
   # Docker-backed adapter tests run here (the Tier-1 `check` job stays Docker-free and fast).

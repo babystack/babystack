@@ -2,17 +2,26 @@ name: Release
 
 # Automated npm publishing driven by Changesets, authenticated with npm Trusted Publishing (OIDC) —
 # there is NO long-lived NPM_TOKEN. Two jobs:
-#   • prepare — keeps the "Version Packages" PR current from pending changesets, and decides whether a
-#               real publish is due (a public package version is ahead of the registry). Ungated.
-#   • publish — runs only when a publish is due, behind the "release" Environment (manual approval), and
-#               publishes tokenlessly with a signed provenance attestation, then tags + GitHub Releases.
+#   • prepare — keeps the "Version Packages" PR current from pending changesets, verifies the approval gate
+#               is really configured, and decides whether a real publish is due. Ungated.
+#   • publish — runs only when a publish is due, behind the "release" Environment (manual approval). It
+#               re-runs the COMPLETE gate against the exact commit being published, refuses on any of the
+#               pre-flight conditions below, and only then publishes tokenlessly with a signed provenance
+#               attestation, tags, and opens a GitHub Release per package.
 #
-# Prerequisites (one-time, outside this file):
+# Prerequisites (one-time, outside this file — see RELEASING.md):
 #   1. npmjs.com → each public package → Settings → Trusted Publisher: GitHub Actions, repo
-#      babystack/babystack, workflow `release.yml`.
+#      babystack/babystack, workflow `release.yml`, environment `release`.
 #      (babystack, @babystack/core|cli|docker|mysql|runtime|vitest.)
-#   2. GitHub → Settings → Environments → create `release` with yourself as a required reviewer
-#      (that required reviewer IS the approval gate; without it, publish would run unpaused).
+#      A Trusted Publisher is a PER-PACKAGE setting and cannot be bound to a name that has never been
+#      published, so a brand-new package name must be published by hand once before it can ever release
+#      through here. There is NO unauthenticated way to read whether a package has a Trusted Publisher
+#      bound, so no gate below can check this — it is a by-eye checklist item, per name.
+#   2. GitHub → Settings → Environments → `release`, with the maintainer as a REQUIRED REVIEWER.
+#      That required reviewer IS the approval gate. `environment: release` on its own is only a NAME:
+#      GitHub auto-creates a referenced environment that does not exist, WITHOUT protection rules, so a
+#      missing environment does not fail the job — it silently removes the pause. This repo shipped in
+#      exactly that state, which is why `prepare` now verifies it on every run (scripts/check-release.mjs).
 #
 # Actions are pinned to full commit SHAs (supply-chain hardening); the trailing "# vX" comment is the
 # human-readable version. Dependabot (github-actions, monthly) bumps both the SHA and the comment.
@@ -32,10 +41,26 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false # never cancel an in-flight publish
 
+# How many PUBLISHABLE (`private` not true) manifests `packages/*/package.json` must match. The guards below
+# refuse to run unless the glob matches exactly this many, because a glob that comes up short makes every
+# per-package loop iterate zero times and "pass" having checked nothing — the vacuous-green shape this whole
+# file exists to prevent.
+#
+# It is `!=`, not `<`, deliberately: too MANY publishable manifests is the more dangerous direction. A newly
+# added package has no npm name and therefore no Trusted Publisher, and this pipeline is tokenless — it
+# cannot create the name. Releasing with it present publishes the packages that do exist and fails on the
+# new one, leaving a partial release that npm will not let you take back.
+#
+# `scripts/check-release.mjs` asserts this number still equals the real workspace count, and runs in CI on
+# every PR — so adding a package fails there, where the fix is cheap, instead of here, mid-release.
+env:
+  EXPECTED_PACKAGES: 7
+
 jobs:
-  # ── Maintain the Version Packages PR, and decide if a publish is due. ──────────────────────────
+  # ── Maintain the Version Packages PR, verify the gate, and decide if a publish is due. ─────────
   prepare:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write # push the changeset-release branch
       pull-requests: write # open/update the Version Packages PR
@@ -49,29 +74,68 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+
       # Opens/updates the Version Packages PR while changesets are pending; a no-op once it is merged.
+      # Ordered BEFORE the gate check on purpose: a missing approval gate must block PUBLISHING, but there
+      # is no reason for it to also stop the changelog PR from being maintained.
       - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           version: pnpm run version-packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # A publish is due iff some public package's local version is ahead of the registry — i.e. the
+
+      # The approval gate is the ONLY thing standing between a merge and an immutable npm publish, and it
+      # lives in repo settings rather than in this file — so nothing in the diff shows when it disappears.
+      # Fails the job (and therefore skips `publish`) if the `release` environment is missing or has no
+      # required reviewer. Fails CLOSED on any API error: "could not check" is never read as "fine".
+      - name: Verify the release approval gate is really configured
+        run: node scripts/check-release.mjs --environment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # only raises the rate limit; the endpoint is public
+
+      # A publish is due iff some publishable package's local version is NOT on the registry — i.e. the
       # Version Packages PR just merged. This gates the publish job so the approval prompt fires on real
       # releases only, not on every feature merge (which merely refreshes the PR above).
+      #
+      # This probe FAILS CLOSED. The previous version was `npm view "$name" version 2>/dev/null || echo none`,
+      # which cannot tell a missing package from a 5xx, a rate limit or a timeout — every one of them became
+      # the string `none`, compared unequal to the local version, and reported a publish as due. A registry
+      # outage would have queued an approval prompt for a release nobody asked for.
       - id: check
         shell: bash
         run: |
+          set -euo pipefail
+          shopt -s nullglob
+          : "${EXPECTED_PACKAGES:?EXPECTED_PACKAGES must be set at the workflow level}"
+          pkgs=(packages/*/package.json)
+          publishable=()
+          for f in "${pkgs[@]}"; do
+            if [ "$(node -p "require('./$f').private === true")" = "true" ]; then
+              echo "  $(node -p "require('./$f').name") — private, never published"
+              continue
+            fi
+            publishable+=("$f")
+          done
+          if [ "${#publishable[@]}" -ne "$EXPECTED_PACKAGES" ]; then
+            echo "::error::expected $EXPECTED_PACKAGES publishable manifests, matched ${#publishable[@]} — refusing to decide anything about a release. See EXPECTED_PACKAGES in this workflow and scripts/check-release.mjs."
+            exit 1
+          fi
           should=false
-          for f in packages/*/package.json; do
-            [ "$(node -p "require('./$f').private === true")" = "true" ] && continue
+          for f in "${publishable[@]}"; do
             name=$(node -p "require('./$f').name")
             local=$(node -p "require('./$f').version")
-            reg=$(npm view "$name" version 2>/dev/null || echo none)
-            if [ "$local" != "$reg" ]; then
-              echo "→ $name: local $local vs registry $reg — will publish"
+            # `x="$(cmd)"; rc=$?` does NOT work under `set -e`: the failing substitution aborts the step
+            # before `$?` is read. `|| rc=$?` keeps the command in a list, where `set -e` is suppressed.
+            rc=0
+            err="$(npm view "$name@$local" version 2>&1 >/dev/null)" || rc=$?
+            if [ "$rc" -eq 0 ]; then
+              echo "  $name@$local already on the registry"
+            elif printf '%s' "$err" | grep -qiE 'code E404|404 Not Found|is not in th'; then
+              echo "→ $name@$local is not on the registry — a publish is due"
               should=true
             else
-              echo "  $name: $local already on the registry"
+              echo "::error::could not reach the registry to check $name@$local — refusing to guess whether a release is due. $err"
+              exit 1
             fi
           done
           echo "should_publish=$should" >> "$GITHUB_OUTPUT"
@@ -80,28 +144,151 @@ jobs:
   publish:
     needs: prepare
     if: needs.prepare.outputs.should_publish == 'true'
-    runs-on: ubuntu-latest
-    environment: release # manual-approval gate (required reviewer on the environment)
+    runs-on: ubuntu-latest # provenance needs a GitHub-hosted runner's OIDC identity — never a self-hosted one
+    # 360 — GitHub's default, but set EXPLICITLY so it reads as a decision rather than an omission. The job
+    # itself takes minutes; the bound is long because it waits on the `release` environment's required
+    # reviewer first, and whether that waiting window consumes `timeout-minutes` is not something the docs
+    # state plainly. The asymmetry settles it: too long costs idle minutes, too short kills a release
+    # mid-publish and leaves part of the family on npm, immutably.
+    timeout-minutes: 360
+    environment: release # manual-approval gate — see the header; `prepare` verifies it actually exists
     permissions:
-      contents: write # changesets/action pushes git tags + creates GitHub Releases
+      # `contents: write` is here because `changesets/action` pushes git tags and creates the GitHub
+      # Releases from inside this job. cloudbitmaps splits that into a separate least-privilege job so the
+      # job that publishes to npm cannot also write to the repo; that is stricter, and it costs replacing a
+      # well-tested action with hand-rolled tag/release logic — the exact code whose failure mode is a
+      # GitHub Release for a version that never reached npm. Keeping the action is the deliberate trade
+      # here; the ordering property the split protects (a Release only for a version that really published)
+      # is already guaranteed, because the action creates releases only after the publish succeeds.
+      contents: write
       id-token: write # OIDC for npm Trusted Publishing + provenance
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          # A shallow checkout carries no tags. Nothing in today's gate reads a previous tag, but `smoke`
+          # and the lint stack are free to grow one, and a gate that cannot see what it checks would pass
+          # vacuously rather than fail. Full history also lets `changeset publish` see existing tags.
+          fetch-depth: 0
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Trusted Publishing (OIDC) requires npm ≥ 11.5.1; the runner's bundled npm is older.
-      - run: npm install -g npm@latest
+
+      # Trusted Publishing (OIDC) requires npm >= 11.5.1; the runner's bundled npm is older. A FLOOR, not
+      # `@latest`: `@latest` makes every release depend on whatever npm shipped that morning, so a
+      # regression in a brand-new npm becomes a broken release with nothing in our diff to point at.
+      - name: Upgrade npm for Trusted Publishing
+        run: npm install -g 'npm@^11.5.1'
+
+      # Re-run the COMPLETE gate against the exact commit being published. A green `main` is necessary but
+      # not sufficient — `main` went green on a merge commit, and this is the tree that becomes a tarball.
+      - run: pnpm run lint
+      - run: pnpm run format:check
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run build
+      - run: pnpm run smoke
+      # Static release-setup checks (EXPECTED_PACKAGES vs the real workspace) plus a re-verification that
+      # the approval gate still exists — this job is already past it, but if the environment was missing,
+      # GitHub auto-created an UNPROTECTED one and this job ran without ever pausing. Catching that here
+      # still stops the publish; the run is unapproved, so it must not reach the registry.
+      - name: Re-verify the release setup from inside the gated job
+        run: node scripts/check-release.mjs --environment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Pre-flight: everything that can still be FIXED, checked before the one irreversible step. ──
+      #
+      # Two npm behaviours make a broken release look green, and both are read-only to detect:
+      #
+      #   1. A NAME THAT DOES NOT EXIST YET. This pipeline is tokenless: it authenticates by OIDC against a
+      #      Trusted Publisher, a per-package setting that cannot be bound to a package that has never been
+      #      published. `changeset publish` walks the workspace and stops at the first failure, so a family
+      #      where `core` publishes and a new package does not puts `core` on the registry, immutably, and
+      #      then fails — with the flagship never published at all.
+      #
+      #   2. NOTHING LEFT TO PUBLISH. `changeset publish` SKIPS a version already on the registry and exits
+      #      0. That skip is correct and load-bearing under Changesets — an unchanged package keeps its
+      #      version and must not be republished — so this cannot be checked per-package the way a
+      #      lockstep-versioned repo would. What it means here is narrower and still worth refusing: if
+      #      EVERY publishable version is already on the registry there is nothing to do, and the run would
+      #      go green having published nothing at all.
+      #
+      # Both probes FAIL CLOSED. `npm view` exits non-zero for a missing name AND for a 5xx, a rate limit or
+      # a timeout; only a clean 404 is read as "not published", anything else refuses rather than guesses.
+      - name: Refuse an unbootstrapped name, or a release with nothing to publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          # An unmatched glob would otherwise expand to the LITERAL string and loop once on a path that does
+          # not exist; with nullglob it loops ZERO times and every check below "passes" having probed nothing.
+          shopt -s nullglob
+          # `[ 7 -ne "" ]` is a bash ERROR (status 2) and, as an `if` CONDITION, does not trip `set -e` — so
+          # an unset variable would silently skip the guard rather than fail it.
+          : "${EXPECTED_PACKAGES:?EXPECTED_PACKAGES must be set at the workflow level}"
+          pkgs=(packages/*/package.json)
+          publishable=()
+          skipped=()
+          for f in "${pkgs[@]}"; do
+            if [ "$(node -p "require('./$f').private === true")" = "true" ]; then
+              skipped+=("$(node -p "require('./$f').name")")
+              continue
+            fi
+            publishable+=("$f")
+          done
+          [ "${#skipped[@]}" -eq 0 ] || echo "skipped (private, never published): ${skipped[*]}"
+          if [ "${#publishable[@]}" -ne "$EXPECTED_PACKAGES" ]; then
+            echo "::error::expected $EXPECTED_PACKAGES publishable manifests, matched ${#publishable[@]} — refusing to release. A package was added, removed, or flipped to \"private\": true. If ADDED: create its npm name and bind a Trusted Publisher before raising EXPECTED_PACKAGES, or this release publishes the others and fails on it. If PRIVATE: changeset publish would skip it silently and the release would go green having shipped less than it claims."
+            exit 1
+          fi
+          fail=0
+          to_publish=0
+          for f in "${publishable[@]}"; do
+            NAME="$(node -p "require('./$f').name")"
+            VER="$(node -p "require('./$f').version")"
+            name_rc=0
+            name_err="$(npm view "$NAME" version 2>&1 >/dev/null)" || name_rc=$?
+            if [ "$name_rc" -ne 0 ] && ! printf '%s' "$name_err" | grep -qiE 'code E404|404 Not Found|is not in th'; then
+              echo "::error::could not reach the registry to check $NAME — refusing to release rather than guess. $name_err"
+              fail=1
+              continue
+            elif [ "$name_rc" -ne 0 ]; then
+              echo "::error::$NAME does not exist on the registry. A Trusted Publisher cannot be bound to a package that has never been published, so this tokenless workflow cannot create it — publish the name once by hand with interactive 2FA, bind its Trusted Publisher on npmjs.com, then re-run. Releasing now would publish the packages that DO exist and fail on this one, leaving a partial, immutable release."
+              fail=1
+              continue
+            fi
+            ver_rc=0
+            ver_err="$(npm view "$NAME@$VER" version 2>&1 >/dev/null)" || ver_rc=$?
+            if [ "$ver_rc" -eq 0 ]; then
+              echo "  $NAME@$VER already on the registry — changeset publish will skip it (expected for an unchanged package)"
+            elif printf '%s' "$ver_err" | grep -qiE 'code E404|404 Not Found|is not in th'; then
+              echo "→ $NAME@$VER will publish"
+              to_publish=$((to_publish + 1))
+            else
+              echo "::error::could not reach the registry to check $NAME@$VER — refusing to release rather than guess. $ver_err"
+              fail=1
+            fi
+          done
+          if [ "$fail" -eq 0 ] && [ "$to_publish" -eq 0 ]; then
+            echo "::error::every publishable version is already on the registry — this run would publish NOTHING and still report success. Merge the Version Packages PR first, or bump a version deliberately."
+            fail=1
+          fi
+          [ "$fail" -eq 0 ] || exit 1
+          echo "pre-flight OK — $to_publish package(s) to publish"
+
       # `pnpm run release` = turbo build + `changeset publish`. changeset publish only publishes packages
       # whose version isn't on the registry yet; npm authenticates via the OIDC token (no NPM_TOKEN) and
       # NPM_CONFIG_PROVENANCE=true attaches a signed provenance attestation. The action then pushes tags
-      # and opens a GitHub Release per published package.
+      # and opens a GitHub Release per published package — only after the publish command succeeds, so a
+      # Release object can never describe a version that never reached npm.
       - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           publish: pnpm run release
         env:
+          # No NODE_AUTH_TOKEN. npm authenticates from this workflow's OIDC identity (Trusted Publishing);
+          # adding a token back would re-introduce the long-lived secret AND be rejected outright by the
+          # packages' "require 2FA and disallow tokens" setting.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
