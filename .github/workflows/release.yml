@@ -349,7 +349,14 @@ jobs:
   # cannot ship code.
   github-release:
     needs: publish
-    if: needs.publish.outputs.published == 'true'
+    # `!cancelled()`, not the default "publish succeeded". A PARTIAL publish is the case that matters: when
+    # some packages reach npm and others do not, `changesets/action` exits non-zero, so the publish job goes
+    # red — but the packages that DID publish are on the registry immutably and still need their tag and
+    # Release. Under a plain `needs:` this job would be skipped and they would get neither, which is worse
+    # than the inline behaviour this split replaced. The outputs are still set (setOutput runs before the
+    # action exits), and `publishedPackages` lists only what genuinely published, so the ordering guarantee
+    # holds either way: a Release object can still only ever describe a version that really reached npm.
+    if: ${{ !cancelled() && needs.publish.outputs.published == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
