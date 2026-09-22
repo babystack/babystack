@@ -27,19 +27,29 @@ const FILES = [
 ].filter((f) => existsSync(join(ROOT, f)))
 
 const FORBIDDEN = [
+  // ── What @changesets/cli 2.x did, and 3.x (this repo's version) does not. ─────────────────────────────
+  // 2.x published the whole family at once, so "a failure on one does not stop the others" was true and
+  // was written into these docs. 3.x publishes in DEPENDENCY LEVELS and stops at the first level with a
+  // failure. The old sentence now describes the opposite of what happens, which is the worst kind of
+  // stale: it tells a maintainer mid-incident that the rest of the family has landed when it has not.
   {
-    // The one that actually got through, in two spellings.
-    pattern: /stop\w*\s+at\s+the\s+first\s+failure/i,
+    pattern: /failure\s+on\s+one\s+(package\s+)?does\s+not\s+stop\s+the\s+others/i,
     why:
-      '`changeset publish` publishes the family CONCURRENTLY (up to ten at a time) — it does NOT stop at ' +
-      'the first failure. The difference matters: "stops at the first failure" implies topological safety, ' +
-      'where a dependency lands and its dependents do not. Real concurrency lets a DEPENDENT land while the ' +
-      'dependency it needs does not, which is the strictly worse partial release.',
+      '`changeset publish` 3.x publishes in dependency levels and STOPS at the first level with a failure — ' +
+      'levels below it and same-level siblings land, nothing above it does. "Does not stop the others" was ' +
+      'true of 2.x only.',
   },
   {
-    pattern: /publish\w*\s+(the\s+family\s+)?in\s+(dependency|topological)\s+order/i,
-    why: '`changeset publish` does not order by dependency — that is `pnpm -r publish`.',
+    pattern: /(rather\s+than|not)\s+in\s+(dependency|topological)\s+order|\bnot\s+topological/i,
+    why: '`changeset publish` 3.x DOES publish in dependency order (graphSequencer levels). 2.x did not.',
   },
+  {
+    pattern: /changeset\s+version`?\s+(still\s+)?bumps\s+(them|private)/i,
+    why:
+      'Since @changesets/cli 3.0, private packages are no longer versioned by default. A package that goes ' +
+      'private by accident now simply vanishes from the Version PR.',
+  },
+  // ── Claims that are false for this pipeline regardless of version. ──────────────────────────────────
   {
     pattern: /publishes\s+every\s+bumped\s+package/i,
     why:
@@ -102,9 +112,10 @@ describe('release docs — no claims that are false about this pipeline', () => 
   }
 
   test('the detector sees a claim that WRAPS across lines', () => {
-    // The miss that motivated normalising: prettier puts the break wherever the column width lands.
+    // The miss that motivated normalising: prettier puts the break wherever the column width lands, so a
+    // per-line regex sees neither half of a wrapped claim and reports the file clean.
     const wrapped =
-      '  > the publish errors — but with `changeset publish` stopping\n  > at the first failure, a binding'
+      '  > publishes the family concurrently, so a failure on one does not\n  > stop the others'
     assert.ok(
       !FORBIDDEN[0].pattern.test(wrapped),
       'sanity: the raw text really is split across lines',
@@ -115,17 +126,24 @@ describe('release docs — no claims that are false about this pipeline', () => 
     )
   })
 
-  test('the detector itself catches both spellings it was written for', () => {
-    // A guard that has never fired is not known to work.
-    const [rule] = FORBIDDEN
-    assert.ok(rule.pattern.test('changeset publish stops at the first failure'))
-    assert.ok(rule.pattern.test('with changeset publish stopping at the first failure, a binding'))
-    assert.ok(rule.pattern.test('it STOPPED AT THE FIRST FAILURE'))
-    // …and does not fire on the correct sentence.
+  test('the detector catches the stale 2.x claims, and passes the true 3.x ones', () => {
+    // A guard that has never fired is not known to work — and one that fires on the TRUE sentence is worse,
+    // because it teaches people to route around it.
+    const [stops, order, priv] = FORBIDDEN
     assert.ok(
-      !rule.pattern.test(
+      stops.pattern.test(
         'publishes the family concurrently, so a failure on one does not stop the others',
       ),
     )
+    assert.ok(
+      order.pattern.test('uploads up to ten packages at once rather than in dependency order'),
+    )
+    assert.ok(order.pattern.test('it is concurrent, not topological'))
+    assert.ok(priv.pattern.test('while `changeset version` still bumps them'))
+    const truth =
+      '`changeset publish` publishes in dependency levels — up to ten at a time within a level — and stops ' +
+      'at the first level with a failure. Since 3.0, `changeset version` no longer bumps private packages.'
+    for (const { pattern } of FORBIDDEN)
+      assert.ok(!pattern.test(truth), `false positive on the truth: ${pattern}`)
   })
 })

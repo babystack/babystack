@@ -5,7 +5,18 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Supply-chain cooldown, matching pnpm's `minimumReleaseAge` in pnpm-workspace.yaml: never propose a
+    # version younger than 7 days. The handbook asks for a cooldown alongside SHA-pinned actions.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
+    ignore:
+      # typescript-eslint peers `typescript <6.1.0`, so a TypeScript MAJOR on the primary compiler breaks lint.
+      # Dependabot does not read peer ranges: it proposed exactly that (TS 7 primary) and its own CI went red.
+      # TS 7 already runs here as the forward-compat `typescript-next` gate; the primary moves when
+      # typescript-eslint supports it (see the catalog comment in pnpm-workspace.yaml).
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
       npm-all:
         patterns: ['*']
@@ -15,6 +26,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    # Supply-chain cooldown, matching pnpm's `minimumReleaseAge` in pnpm-workspace.yaml: never propose a
+    # version younger than 7 days. The handbook asks for a cooldown alongside SHA-pinned actions.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       actions-all:
