@@ -36,27 +36,37 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
 
 [`release.yml`](.github/workflows/release.yml) runs on every push to `main`, in three jobs:
 
-- **`prepare`** (no gate) — runs `changeset version` (via `changesets/action`) to keep the "Version
-  Packages" PR current, **verifies the approval gate actually exists** (see below), then checks whether any
-  publishable package's local version is **missing from the npm registry** (i.e. the Version PR was just
-  merged). That check decides whether a real publish is due, and it **fails closed**: a registry timeout or
-  5xx aborts the run rather than being read as "not published".
+- **`prepare`** (no gate) — checks whether any publishable package's local version is **missing from the
+  npm registry** (i.e. the Version PR was just merged), then runs `changeset version` (via
+  `changesets/action`) to keep the "Version Packages" PR current, then **verifies the approval gate actually
+  exists**. That first check decides whether a real publish is due, it runs **before** the version step for
+  the reason given under [Pre-flight guards](#pre-flight-guards), and it **fails closed**: a registry
+  timeout or 5xx aborts the run rather than being read as "not published".
 - **`publish`** (gated by the **`release` environment** → your manual approval) — runs **only when a publish
   is due**. It upgrades npm to ≥ 11.5.1, builds, and runs `pnpm run release` (`turbo run build &&
 changeset publish`), which uploads each not-yet-published package. Authentication is the GitHub **OIDC**
   token (there is **no `NPM_TOKEN`**), and `NPM_CONFIG_PROVENANCE=true` attaches a signed provenance
-  attestation. Before it publishes, it **re-runs the complete CI gate** against the exact commit being
-  released, then runs the [pre-flight guards](#pre-flight-guards). Afterwards it **verifies from the registry
+  attestation. Before it publishes, it **re-runs the Tier-1 gate** — lint, arch, format, typecheck, test,
+  build, smoke — against the exact commit being released, then runs the
+  [pre-flight guards](#pre-flight-guards). Afterwards it **verifies from the registry
   API** that every expected package really resolves at the new version _and_ carries a provenance
   attestation — a green publish step is not proof that anything published.
 - **`github-release`** — pushes the git tags and cuts one GitHub Release per published package, with notes
   from that package's `CHANGELOG.md`. It runs **only after `publish` succeeds**, so a Release object can
   never describe a version that never reached npm.
 
-The re-run of the CI gate is not belt-and-braces. The "Version Packages" PR is opened by `changesets/action`
-using `GITHUB_TOKEN`, and GitHub does not start workflow runs for events raised by that token — so `ci.yml`
-does **not** run automatically on the Version PR. Merging it (the routine thing to do with a bot PR that
-"just bumps versions") would otherwise publish a tree that was never gated on a PR at all.
+The re-run is not belt-and-braces. The "Version Packages" PR is opened by `changesets/action` using
+`GITHUB_TOKEN`, and GitHub does not start workflow runs for events raised by that token — so `ci.yml` does
+**not** run automatically on the Version PR. Merging it (the routine thing to do with a bot PR that "just
+bumps versions") would otherwise publish a tree that was never gated on a PR at all.
+
+**Two things it does _not_ re-run, deliberately — know them before you approve.** The Docker-backed
+`integration` job (real-MySQL suites plus the examples app) is not repeated here: it needs services, takes
+minutes, and would sit in front of a human who is already waiting on an approval prompt. Nor does the
+publish job repeat CI's **Node 22 + 24 matrix** — it builds on the one version in `.nvmrc`. Both _do_ run on
+the push to `main` that the Version PR merge creates, but the publish job has no dependency on that run, so
+it can be approved while integration is still going or after it has gone red. **Check that `main` is green
+before approving the deployment** — that is the part the automation does not do for you.
 
 **Why `github-release` is a separate job.** `changesets/action` injects `GITHUB_TOKEN` into the environment
 of the publish script, so every build tool and every transitive dependency lifecycle script in

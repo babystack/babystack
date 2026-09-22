@@ -195,15 +195,22 @@ jobs:
       - name: Upgrade npm for Trusted Publishing
         run: npm install -g 'npm@^11.5.1'
 
-      # Re-run the COMPLETE gate against the exact commit being published. This is not belt-and-braces: the
-      # Version Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub does not start
-      # workflow runs for events raised by that token — so `ci.yml` does NOT run automatically on the
-      # Version PR, and merging it (the routine thing to do with a bot PR that "just bumps versions")
-      # publishes a tree that was never gated on a PR at all.
+      # Re-run the TIER-1 gate against the exact commit being published. Not belt-and-braces: the Version
+      # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub does not start workflow
+      # runs for events raised by that token — so `ci.yml` does NOT run automatically on the Version PR, and
+      # merging it (the routine thing to do with a bot PR that "just bumps versions") publishes a tree that
+      # was never gated on a PR at all.
+      #
+      # Two things this deliberately does NOT repeat, so the claim stays honest: the Docker-backed
+      # `integration` job (it needs services and minutes, in front of a human already waiting on an approval
+      # prompt), and CI's Node 22+24 matrix (this builds on the one version in .nvmrc). Both run on the push
+      # to main that the Version PR merge creates — but nothing here DEPENDS on that run, so a reviewer can
+      # approve while it is still going. RELEASING.md says to check main is green before approving.
       - run: pnpm run lint
       - run: pnpm run format:check
       - run: pnpm run typecheck
       - run: pnpm run test
+      - run: pnpm run test:release
       - run: pnpm run build
       - run: pnpm run smoke
       # Static release-setup checks plus a re-verification of the approval gate. This job is already past
@@ -242,6 +249,16 @@ jobs:
           # `[ 7 -ne "" ]` is a bash ERROR (status 2) and, as an `if` CONDITION, does not trip `set -e` — so
           # an unset variable would silently skip a guard rather than fail it.
           : "${PUBLISHED_PACKAGES:?PUBLISHED_PACKAGES must be set at the workflow level}"
+
+          # `changesets/action` is a `switch (true)`: with changesets present it takes the VERSION branch
+          # even when only `publish:` is set, and never publishes at all. That commit shape is unusual (it
+          # would have to bump a version ahead of the registry AND still carry a changeset), and with only
+          # `id-token: write` the version branch cannot push, so it fails rather than silently doing
+          # nothing — but it fails with an error about permissions that says nothing about the real cause.
+          if [ -n "$(find .changeset -maxdepth 1 -name '*.md' ! -iname 'README.md' -print -quit 2>/dev/null)" ]; then
+            echo "::error::this commit still carries changesets, so changesets/action would run its VERSION path instead of publishing. Merge the Version Packages PR (which consumes them) rather than releasing from a commit that both bumps versions and adds a changeset."
+            exit 1
+          fi
 
           read -ra expected <<< "$PUBLISHED_PACKAGES"
           declare -A want=()
@@ -297,7 +314,14 @@ jobs:
               # A missing changelog section is a two-line edit; an npm tarball is immutable outside a
               # 72-hour window. Check the cheap thing before the expensive one — and before the
               # github-release job would otherwise discover it with nothing left to do about it.
-              node scripts/release-notes.mjs "$NAME" "$VER" > /dev/null
+              #
+              # `fail=1` rather than letting `set -e` kill the step here: every other failure in this loop
+              # reports and continues so the operator sees ALL of them at once. Aborting on the first one
+              # means fixing a changelog, re-running, waiting for approval again, and discovering the next.
+              if ! notes_err="$(node scripts/release-notes.mjs "$NAME" "$VER" 2>&1 >/dev/null)"; then
+                echo "::error::$NAME@$VER cannot be released: $notes_err"
+                fail=1
+              fi
             else
               echo "::error::could not reach the registry to check $NAME@$VER — refusing to release rather than guess. $ver_err"
               fail=1
@@ -336,10 +360,14 @@ jobs:
       # A green publish step is not proof that anything published. Verify against the registry itself —
       # including that the set matches what pre-flight said, and that provenance is actually attached.
       - name: Verify the release landed on the registry
-        run: |
-          node scripts/verify-published.mjs \
-            '${{ steps.changesets.outputs.publishedPackages }}' \
-            '${{ steps.preflight.outputs.expected }}'
+        env:
+          # Via `env:`, not interpolated into the `run:` body. Neither value can contain a quote today, but
+          # this is the one place in a supply-chain-hardening file that would splice expression output into
+          # a shell string — in the job holding the OIDC token. The github-release job below already does
+          # it this way; match it rather than being the exception.
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+          EXPECTED: ${{ steps.preflight.outputs.expected }}
+        run: node scripts/verify-published.mjs "$PUBLISHED" "$EXPECTED"
 
   # ── Tag + GitHub Releases. Separate job so the publishing job never holds `contents: write`. ───
   #
@@ -383,14 +411,41 @@ jobs:
             echo "::error::publish reported success but named no packages — refusing to cut releases for nothing"
             exit 1
           fi
-          printf '%s' "$PUBLISHED" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).map(p=>p.name+' '+p.version).join('\n')" | while read -r name version; do
+
+          # EVERY step below is idempotent, and one failure does not strand the packages after it.
+          #
+          # This job runs when a publish partially failed, which is exactly when it is most likely to fail
+          # partway itself — and the npm side is already immutable by then, so the ONLY recovery is to
+          # re-run this. An earlier version guarded `git tag` but not `gh release create`: on a re-run the
+          # first already-released package returned HTTP 422 `already_exists`, `set -e` killed the step,
+          # and every package after it was never reached. The job could not be driven to completion at all.
+          #
+          # `done < <(...)` rather than a pipe: a piped `while` runs in a SUBSHELL, so `fail` set inside it
+          # would be discarded and the step would exit 0 having reported errors.
+          fail=0
+          while read -r name version; do
             tag="$name@$version"
             if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
               echo "  tag $tag already exists — leaving it alone"
-            else
-              git tag "$tag"
-              git push origin "$tag"
+            elif ! { git tag "$tag" && git push origin "$tag"; }; then
+              echo "::error::could not push tag $tag"
+              fail=1
+              continue
             fi
-            node scripts/release-notes.mjs "$name" "$version" > /tmp/notes.md
-            gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag
-          done
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "  release $tag already exists — leaving it alone"
+              continue
+            fi
+            if ! node scripts/release-notes.mjs "$name" "$version" > /tmp/notes.md; then
+              echo "::error::$tag published to npm but has no CHANGELOG section, so its Release cannot be cut"
+              fail=1
+              continue
+            fi
+            if ! gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag; then
+              echo "::error::could not create the GitHub Release for $tag"
+              fail=1
+              continue
+            fi
+            echo "  released $tag"
+          done < <(printf '%s' "$PUBLISHED" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).map(p=>p.name+' '+p.version).join('\n')")
+          [ "$fail" -eq 0 ] || exit 1

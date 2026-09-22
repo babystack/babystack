@@ -36,6 +36,9 @@ jobs:
       - run: pnpm run test
       - run: pnpm run build
       - run: pnpm run smoke
+      # Unit tests for the release gate itself (scripts/*.test.mjs). The root `test` script is
+      # `turbo run test --filter=./packages/*`, so nothing under scripts/ is covered by it.
+      - run: pnpm run test:release
       # The release setup is config that lives OUTSIDE this repo's diff — the `release` GitHub environment
       # and its required reviewer. Nothing in a PR shows when they disappear, and the cost of noticing at
       # release time is an unapproved publish to npm, which cannot be taken back. Checking it here means
