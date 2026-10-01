@@ -1,4 +1,4 @@
-# CLAUDE.md — babystack
+# AGENTS.md — babystack
 
 babystack is an open-source dev tool: every test run / local dev session / AI-agent session gets its own
 fresh, seeded, disposable copy of the app's **real** backing services in Docker — **real MySQL today**.
@@ -15,7 +15,7 @@ Project state is the roadmap. The principles/conventions below are this project'
 
 ## Principles
 
-Build by these (full version + updates in the handbook):
+Build by these:
 
 - **SOLID** — single responsibility; extend via composition; substitutable implementations; small
   interfaces; depend on abstractions (inject deps).
@@ -33,7 +33,7 @@ Build by these (full version + updates in the handbook):
 - **Tests** under `tests/` mirroring `src/` (not co-located); no untested code; deterministic; name tests
   after the spec/invariant id; integration tests under `tests/integration/`.
 - **Branching** off `main` (`feature/`/`fix/`/`chore/`); **squash-merge**; **delete the branch (remote +
-  local) after merge**; code PRs wait for approval; docs-only may go straight to `main`. Never
+  local) after merge**; every PR, docs-only included, waits for an explicit per-PR approval. Never
   `--no-verify`; never `Co-Authored-By`.
 - **Docs** — user-facing in `docs/guide/` (getting-started + api-reference), public roadmap
   `docs/ROADMAP.md`; detailed design/decision records, `research/`, and `usecases/` are kept **private**;
@@ -46,7 +46,7 @@ Build by these (full version + updates in the handbook):
   default-export interop for CJS deps; pluggable seams behind explicit interfaces, each with a
   **conformance suite** every implementation must pass.
 
-**Project-specific (what differs from / adds to the handbook):**
+**Project-specific (what differs from or adds to the rules above):**
 
 - **Orchestrate & Delegate, never Emulate.** Adapters either (a) run the _real_ engine and manage its
   lifecycle, or (b) drive LocalStack. **Never** reimplement a proprietary API (MySQL/S3/AWS) ourselves —
@@ -93,10 +93,10 @@ A fresh clone must pass `install → lint → format:check → typecheck → tes
 
 ## Per-phase / per-task working process
 
-1. **Branch off `main`** (docs-only may go straight to `main`).
+1. **Branch off `main`** for every change, docs included.
 2. **Build with tests, not after** — no untested behavior; conformance suites for the seams.
-3. **Adversarial review gate — after every phase AND sub-phase.** Spawn parallel subagents across the
-   handbook lenses (correctness/logic end-to-end · bug-hunt · security · scale/perf ·
+3. **Adversarial review gate — after every phase AND sub-phase.** Spawn parallel subagents across
+   these lenses (correctness/logic end-to-end · bug-hunt · security · scale/perf ·
    code-quality/standards · testing-quality · docs/spec-fidelity · anything-else). Fix real findings in
    the same change or log them with a severity + deferral in the roadmap.
 4. **Commit and push always**; open/update the PR.
