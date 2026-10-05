@@ -230,9 +230,11 @@ jobs:
       #
       #   2. A PACKAGE THAT WOULD BE SILENTLY DROPPED. `changeset publish` filters out `private: true`
       #      packages with no log line at all, and skips already-published versions with a warning, exiting
-      #      0 either way. Since 3.0, `changeset version` no longer bumps private packages either — so a
-      #      package that went private by accident simply vanishes from the Version PR, with nothing to
-      #      flag it. The result is a green run that published less than it claimed.
+      #      0 either way. Since 3.0, `changeset version` never versions a private package either. That
+      #      does not make an accidental `private: true` quiet: a public package that depends on it makes
+      #      `changeset version` fail, and a changeset that names it either fails or is never consumed —
+      #      scripts/check-release.mjs refuses such a changeset on every PR. What reaches this guard is the
+      #      quiet case: a listed package that is private publishes nothing, and the run stays green.
       #
       #   3. NOTHING TO PUBLISH AT ALL. Same exit 0, nothing shipped.
       #

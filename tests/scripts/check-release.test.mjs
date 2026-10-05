@@ -20,10 +20,13 @@ import { fileURLToPath } from 'node:url'
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import {
+  changesetPackages,
+  checkChangesets,
   comparePackages,
   evaluateEnvironment,
   findEscapedManifests,
   parsePublishedPackages,
+  readChangesets,
   readManifests,
   repoSlugFrom,
 } from '../../scripts/check-release.mjs'
@@ -267,5 +270,48 @@ describe('findEscapedManifests — mangled manifest metadata must not ship', () 
       .map((e) => `packages/${e.name}/package.json`)
     assert.ok(pkgPaths.length > 0, 'sanity: the workspace has packages')
     assert.deepEqual(findEscapedManifests(ROOT, ['package.json', ...pkgPaths]), [])
+  })
+})
+
+describe('pending changesets — every name must be able to publish', () => {
+  const manifests = [
+    { name: 'pkg-a', version: '1.0.0', private: false },
+    { name: '@scope/b', version: '1.0.0', private: false },
+    { name: '@scope/kit', version: '0.0.0', private: true },
+  ]
+  const cs = (file, front) => ({ file, text: `---\n${front}---\n\nSomething changed.\n` })
+
+  test('reads quoted and unquoted names, and an empty changeset', () => {
+    assert.deepEqual(changesetPackages("---\n'@scope/b': patch\npkg-a: minor\n---\n\nx\n"), [
+      '@scope/b',
+      'pkg-a',
+    ])
+    assert.deepEqual(changesetPackages('---\n---\n\nnothing to release\n'), [])
+    assert.equal(changesetPackages('no frontmatter here'), null)
+    assert.equal(changesetPackages('---\npkg-a: huge\n---\n'), null)
+  })
+
+  test('passes changesets that name only publishable packages', () => {
+    assert.deepEqual(
+      checkChangesets([cs('ok.md', "'@scope/b': patch\npkg-a: minor\n")], manifests),
+      [],
+    )
+  })
+
+  test('refuses a private package, alone or alongside a public one', () => {
+    for (const front of ["'@scope/kit': patch\n", "'@scope/kit': patch\npkg-a: patch\n"]) {
+      const [problem, ...rest] = checkChangesets([cs('kit.md', front)], manifests)
+      assert.match(problem, /kit\.md names @scope\/kit, which is private/)
+      assert.deepEqual(rest, [])
+    }
+  })
+
+  test('refuses a name no manifest declares, and unreadable frontmatter', () => {
+    assert.match(checkChangesets([cs('typo.md', 'pkg-z: patch\n')], manifests)[0], /no manifest/)
+    assert.match(checkChangesets([{ file: 'x.md', text: 'hello' }], manifests)[0], /no readable/)
+  })
+
+  test("this repo's own pending changesets pass", () => {
+    assert.deepEqual(checkChangesets(readChangesets(ROOT), readManifests(ROOT)), [])
   })
 })

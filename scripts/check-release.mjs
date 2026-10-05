@@ -22,11 +22,18 @@
  *      protection rules". So if the environment was never created — or is deleted, or loses its reviewer —
  *      the publish job does not fail and does not pause. It publishes. The YAML is unchanged, the docs
  *      still describe an approval step, and the only evidence is a release that nobody approved.
- *      This repo shipped in exactly that state: `release.yml` and RELEASING.md both described the gate
- *      while the repo had zero environments configured.
+ *      It has happened: a repository's `release.yml` and RELEASING.md both described the gate while the
+ *      repository had zero environments configured.
  *
- * The decision logic is exported as pure functions so `scripts/check-release.test.mjs` can drive every
- * branch — including the ones that need a registry outage or a deleted environment to reach for real.
+ *   3. A PENDING CHANGESET NAMES A PACKAGE THAT CAN NEVER PUBLISH (offline). Since @changesets/cli 3.0,
+ *      private packages are never versioned. A changeset that names one alongside a public package makes
+ *      `changeset version` fail ("Mixed changesets"), so the Version PR stops updating; one that names only
+ *      private packages is never consumed, so every later release refuses because the commit "still
+ *      carries changesets". A name no manifest declares fails the same way. `pnpm changeset` hides private
+ *      packages from its menu, but a hand-written or generated changeset does not, so this checks every one.
+ *
+ * The decision logic is exported as pure functions so `tests/scripts/check-release.test.mjs` can drive
+ * every branch — including the ones that need a registry outage or a deleted environment to reach for real.
  *
  * Usage:
  *   node scripts/check-release.mjs                 # offline checks only
@@ -177,6 +184,65 @@ export function findEscapedManifests(root, paths) {
   return bad
 }
 
+/** Files in `.changeset/` that are not changesets — the same exclusions the release pre-flight applies. */
+const NOT_CHANGESETS = new Set(['README.MD', 'AGENTS.MD', 'CLAUDE.MD', 'GEMINI.MD'])
+
+/** The pending changesets under `root`, as `{ file, text }`. */
+export function readChangesets(root) {
+  const dir = join(root, '.changeset')
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.md') && !NOT_CHANGESETS.has(f.toUpperCase()))
+    .sort()
+    .map((file) => ({ file, text: readFileSync(join(dir, file), 'utf8') }))
+}
+
+/**
+ * The package names a changeset bumps, read from its frontmatter: one `name: major|minor|patch|none` line
+ * each, the name optionally quoted. `null` when the frontmatter is missing or holds anything else.
+ */
+export function changesetPackages(text) {
+  const block = /^---\r?\n([\s\S]*?)\r?\n?---/.exec(text)
+  if (!block) return null
+  const names = []
+  for (const line of block[1].split(/\r?\n/)) {
+    if (line.trim() === '') continue
+    const hit = /^\s*(['"]?)([^'":\s][^'":]*?)\1\s*:\s*(major|minor|patch|none)\s*$/.exec(line)
+    if (!hit) return null
+    names.push(hit[2])
+  }
+  return names
+}
+
+/** Every pending changeset may name only packages that will actually publish. */
+export function checkChangesets(changesets, manifests) {
+  const byName = new Map(manifests.map((m) => [m.name, m]))
+  const problems = []
+  for (const { file, text } of changesets) {
+    const names = changesetPackages(text)
+    if (names === null) {
+      problems.push(`.changeset/${file} has no readable frontmatter of \`package: bump\` lines`)
+      continue
+    }
+    for (const name of names) {
+      const m = byName.get(name)
+      if (m === undefined) {
+        problems.push(
+          `.changeset/${file} names ${name}, which no manifest under packages/ declares — ` +
+            '`changeset version` cannot apply it. Fix the name or remove it from the changeset.',
+        )
+      } else if (m.private) {
+        problems.push(
+          `.changeset/${file} names ${name}, which is private. @changesets/cli 3 never versions a private ` +
+            'package: alongside a public one this makes `changeset version` fail, and on its own the ' +
+            'changeset is never consumed, so every later release refuses. Remove it from the changeset.',
+        )
+      }
+    }
+  }
+  return problems
+}
+
 /**
  * Every workspace manifest under packages/.
  *
@@ -253,6 +319,13 @@ async function main(argv, root) {
         "Valid JSON, invisible to prettier — and `description` is the text on the package's registry page, " +
         'so the mangling ships. Something re-serialised the manifest with ASCII-only output.',
     )
+  }
+
+  const changesets = readChangesets(root)
+  const csProblems = checkChangesets(changesets, readManifests(root))
+  problems.push(...csProblems)
+  if (csProblems.length === 0) {
+    ok(`${changesets.length} pending changeset(s) name only publishable packages`)
   }
 
   if (argv.includes('--environment')) {
