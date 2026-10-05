@@ -5,7 +5,7 @@ packages:
 # Single source of truth for shared tooling versions — every package.json references these
 # as "catalog:". Bump here once; pnpm applies it everywhere.
 #
-# TypeScript = DUAL-COMPILER (see ENGINEERING-STANDARDS, "Adopting a new language version…"):
+# TypeScript = DUAL-COMPILER — a new compiler is adopted as an extra gate before it becomes the primary:
 #   the primary `typescript` is pinned to TS 6.0 — the newest STABLE the type-aware lint stack
 #   supports (typescript-eslint peers `typescript <6.1.0`). The native TS 7 runs as a forward-compat
 #   `--noEmit` gate via the `typescript-next` alias in the root package.json (`typecheck:next`, folded

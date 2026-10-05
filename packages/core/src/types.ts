@@ -120,7 +120,7 @@ export type BabystackErrorCode =
   | 'ENV_READ_TOO_EARLY'
   | 'NOT_IMPLEMENTED'
 
-/** Typed error (per the handbook: typed errors over thrown strings). */
+/** Typed error: callers branch on `code`, never on the wording of a message. */
 export class BabystackError extends Error {
   readonly code: BabystackErrorCode
 

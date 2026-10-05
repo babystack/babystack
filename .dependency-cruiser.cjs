@@ -1,5 +1,5 @@
 /**
- * Architectural lint. Enforces the "pure core" seam from the handbook:
+ * Architectural lint. Enforces the "pure core" seam:
  * @babystack/core holds interfaces + pure lifecycle logic and must NOT depend on
  * engine/runtime adapters or reach for raw I/O — adapters depend on core, never the reverse.
  */

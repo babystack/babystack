@@ -39,7 +39,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@babystack/core": "workspace:*"
+    "@babystack/core": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "catalog:",
