@@ -111,17 +111,22 @@ review thread so they survive it.
 - **Trusted Publisher bindings are unverified.** Every version on npm today was published by hand before
   the pipeline existed, so no binding has ever been exercised, and none of the packages carries a provenance
   attestation. Reading a binding needs an authenticated maintainer (`npm trust list <package>`), so no CI
-  gate can cover it. **Check all seven before the first pipeline release** — `changeset publish` uploads the
-  family concurrently, so a single missing binding leaves the others on the registry immutably.
+  gate can cover it. **Check all seven before the first pipeline release** — `changeset publish` goes level by
+  level and stops at the failing one, so a single missing binding still leaves every level below it on the
+  registry, immutably.
 - **"Require 2FA and disallow tokens" is documented as configured and is not machine-checkable** either.
   Same status, same one-time check.
 - **Staged publishing is not adopted.** The approval gate authorises a _run_, not an _artifact_ — a reviewer
   approves before the tarball exists, so the bytes that reach the registry are the one part of the release
-  nobody saw. npm's staged-publish flow would move the approval onto the packed tarball; Changesets has no
-  support for it today. Treated as owed work, not as done. The tarball leak scan narrows the gap but does
+  nobody saw. npm's staged-publish flow would move the approval onto the packed tarball, and Changesets 3 now
+  has the pieces: `changeset pack --out-dir` in an unprivileged job, then `changeset publish --from-pack-dir`
+  after approval (changesets/action v2 ships matching `pack` and `publish` steps). Not adopted yet — owed work,
+  not done. The tarball leak scan narrows the gap but does
   not close it: it proves the artifact is clean, not that a human looked at it.
-- **`ci.yml` still pins its actions to mutable tags.** `release.yml` is fully SHA-pinned;
-  [#9](https://github.com/babystack/babystack/pull/9) closes the gap for CI.
+- **TypeScript 7 is not yet the primary compiler.** It runs as an extra typecheck (`typescript-next`)
+  while TypeScript 6.0 stays primary, because typescript-eslint supports `typescript <6.1.0`. Dependabot is
+  told not to propose a TypeScript major, so nothing will announce the moment typescript-eslint adds TS 7
+  support: check its peer range when updating, then make TS 7 primary and drop the alias and the ignore rule.
 - **No clean-room install of the published tarballs.** The smoke test loads the built packages by name from
   the workspace, not from a packed tarball installed into an empty directory, so a broken `files` list or
   `exports` map could still ship.

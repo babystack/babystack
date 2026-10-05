@@ -7,7 +7,7 @@ import { DockerBackend, NodeCommandRunner, SystemClock } from '@babystack/docker
 import { afterAll, describe, expect, it } from 'vitest'
 
 // The 0.5 proof: real parallelism + isolation. Excluded from the default `test`; run via `test:integration`
-// with a reachable engine (CI Tier-2, or `BABYSTACK_DOCKER_IT=1` locally). Drives a 4-file fixture suite
+// with a reachable engine (the CI `integration` job, or `BABYSTACK_DOCKER_IT=1` locally). Drives a 4-file fixture suite
 // through a NESTED stock `vitest run` and inspects the result.
 
 const here = dirname(fileURLToPath(import.meta.url))

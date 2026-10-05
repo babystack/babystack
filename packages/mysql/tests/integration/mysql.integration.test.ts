@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { MysqlAdapter } from '../../src/index'
 
 // Real Docker + a real mysql:8.4 (first run pulls ~500 MB). Excluded from the default `test`; run via
-// `test:integration` with a reachable engine (CI Tier-2, or `BABYSTACK_DOCKER_IT=1` locally). One container
+// `test:integration` with a reachable engine (the CI `integration` job, or `BABYSTACK_DOCKER_IT=1` locally). One container
 // is provisioned in beforeAll and reused across the two tests.
 
 const clock = new SystemClock()

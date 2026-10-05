@@ -10,7 +10,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { leaseEnv, provisionStack } from '@babystack/runtime'
 
 // The 0.4 proof: the Vitest delivery vehicle, end to end, against a real MySQL. Excluded from the default
-// `test`; run via `test:integration` with a reachable engine (CI Tier-2, or `BABYSTACK_DOCKER_IT=1` locally).
+// `test`; run via `test:integration` with a reachable engine (the CI `integration` job, or `BABYSTACK_DOCKER_IT=1` locally).
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '../../../..')

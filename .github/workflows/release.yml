@@ -7,7 +7,8 @@ name: Release
 #   • publish        — behind the `release` Environment (manual approval). Re-runs the fast checks against
 #                      the exact commit being published, refuses on any pre-flight condition, publishes
 #                      tokenlessly with provenance, then verifies from the registry that it really landed.
-#   • github-release — tags and cuts the GitHub Releases. Runs only after `publish` succeeds.
+#   • github-release — tags and cuts the GitHub Releases for whatever `publish` actually published,
+#                      including after a run that failed partway.
 #
 # Prerequisites (one-time, outside this file — see RELEASING.md):
 #   1. npmjs.com → each published package → Trusted Publisher: GitHub Actions, repo babystack/babystack,
@@ -43,7 +44,8 @@ permissions: {}
 #     silently and exits 0, so the release goes green having shipped less than it claims;
 #   • a publishable package NOT named here → its npm name was almost certainly never published, so no
 #     Trusted Publisher can exist for it, and this tokenless pipeline cannot create one. Releasing anyway
-#     publishes the rest concurrently and fails on that one, leaving an immutable partial release.
+#     publishes every dependency level below it and fails on that one, leaving an immutable partial
+#     release.
 #
 # Adding a package therefore fails CI (scripts/check-release.mjs cross-checks this list against the real
 # workspace) until its name is bootstrapped and added here deliberately. That is the point.
@@ -55,23 +57,26 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Cancellable, unlike `publish`: this job only refreshes a PR, and superseding it with a newer commit
-    # is correct. It must NOT share a group with `publish` — a release parked on the approval gate counts
+    # Not cancelled by a newer push: besides refreshing the Version PR, this job decides whether ITS commit
+    # is due a release. Cancelling it would drop that decision, and the newer commit may carry a changeset
+    # that makes it refuse — leaving a merged Version PR unpublished. GitHub still keeps only one PENDING run
+    # per group, so three pushes inside one run can replace the middle one; that window is a minute, not the
+    # whole run. It must NOT share a group with `publish` — a release parked on the approval gate counts
     # as in-progress for as long as the reviewer takes, and GitHub keeps only ONE pending run per group, so
     # a shared group would let each new push to main silently cancel the previously queued `prepare` and
     # leave the Version PR stale for the whole approval window.
     concurrency:
       group: release-prepare-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     permissions:
       contents: write # push the changeset-release branch
       pull-requests: write # open/update the Version Packages PR
     outputs:
       should_publish: ${{ steps.check.outputs.should_publish }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -80,8 +85,8 @@ jobs:
       # ORDER IS LOAD-BEARING: this runs BEFORE `changesets/action`, and must stay there.
       #
       # `changesets/action`'s version mode runs `changeset version`, which REWRITES every
-      # `packages/*/package.json` in the working tree (and, on the git-cli path, leaves the runner checked
-      # out on `changeset-release/main`). A version check placed after it therefore reads the BUMPED
+      # `packages/*/package.json` in the working tree and leaves the runner checked out on
+      # `changeset-release/main`. A version check placed after it therefore reads the BUMPED
       # versions, not what is on `main` — so an ordinary feature merge that merely adds a changeset would
       # look like "a version is ahead of the registry", fire the approval prompt, and send a `publish` job
       # at a commit whose versions are all already published. The gate's entire value is that the prompt
@@ -131,11 +136,14 @@ jobs:
 
       # Opens/updates the Version Packages PR while changesets are pending; a no-op once it is merged.
       # Everything that reads package versions must come BEFORE this step — it mutates the working tree.
-      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+      #
+      # changesets/action v2 takes the token as its `github-token` input (defaulting to github.token) and
+      # THROWS if a GITHUB_TOKEN env var disagrees with it, so there is deliberately no `env:` here. It also
+      # throws on any v1 input name, and refuses to run against @changesets/cli 2 — the action major and the
+      # CLI major move together (v1 ↔ 2.x, v2 ↔ 3.x), which tests/scripts/release-workflow.test.mjs enforces.
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: pnpm run version-packages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version-script: pnpm run version-packages
 
       # The approval gate is the only thing between a merge and an immutable npm publish, and it lives in
       # repo settings rather than in this file — so nothing in a diff shows when it disappears. Placed
@@ -172,34 +180,26 @@ jobs:
       id-token: write
     outputs:
       published: ${{ steps.changesets.outputs.published }}
-      publishedPackages: ${{ steps.changesets.outputs.publishedPackages }}
-      expected: ${{ steps.preflight.outputs.expected }}
+      publishedPackages: ${{ steps.changesets.outputs.published-packages }} # renamed from publishedPackages in v2
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # A shallow checkout carries no tags. Nothing in today's gate reads a previous tag, but the full
           # gate below is free to grow one, and a gate that cannot see what it checks would pass vacuously
           # rather than fail.
           fetch-depth: 0
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Trusted Publishing (OIDC) requires npm >= 11.5.1; the runner's bundled npm is older. A FLOOR, not
-      # `@latest`: `@latest` makes every release depend on whatever npm shipped that morning, so a
-      # regression in a brand-new npm becomes a broken release with nothing in our diff to point at — and
-      # npm 12 now exists, so `@latest` can cross a major boundary mid-release.
-      - name: Upgrade npm for Trusted Publishing
-        run: npm install -g 'npm@^11.5.1'
-
       # Re-run the fast checks against the exact commit being published. Not belt-and-braces: the Version
-      # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub does not start workflow
-      # runs for events raised by that token — so `ci.yml` does NOT run automatically on the Version PR, and
-      # merging it (the routine thing to do with a bot PR that "just bumps versions") publishes a tree that
-      # was never gated on a PR at all.
+      # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub holds CI on a PR opened
+      # that way until a maintainer approves the runs — so `ci.yml` does not run on the Version PR by itself,
+      # and merging it (the routine thing to do with a bot PR that "just bumps versions") could publish a
+      # tree no check ever ran on.
       #
       # Two things this deliberately does NOT repeat, so the claim stays honest: the Docker-backed
       # `integration` job (it needs services and minutes, in front of a human already waiting on an approval
@@ -225,14 +225,19 @@ jobs:
       # ── Pre-flight: everything that can still be FIXED, checked before the irreversible step. ────
       #
       #   1. AN UNBOOTSTRAPPED NAME. This pipeline authenticates by OIDC against a Trusted Publisher, a
-      #      per-package setting that cannot be bound to a name that has never been published. Changesets
-      #      publishes the family CONCURRENTLY (up to 10 at a time), so a failure on one does not stop the
-      #      others — they land immutably while that one does not.
+      #      per-package setting that cannot be bound to a name that has never been published.
+      #      `changeset publish` (3.x) publishes in DEPENDENCY LEVELS — up to ten at a time within a level —
+      #      and stops at the first level with a failure. Every level below it has already landed,
+      #      immutably, and so have the failing package's same-level siblings; nothing above it publishes.
+      #      That is a partial release npm will not let you take back.
       #
       #   2. A PACKAGE THAT WOULD BE SILENTLY DROPPED. `changeset publish` filters out `private: true`
       #      packages with no log line at all, and skips already-published versions with a warning, exiting
-      #      0 either way. `changeset version` still bumps private packages, so the Version PR looks
-      #      complete. The result is a green run that published less than it claimed.
+      #      0 either way. Since 3.0, `changeset version` never versions a private package either. That
+      #      does not make an accidental `private: true` quiet: a public package that depends on it makes
+      #      `changeset version` fail, and a changeset that names it either fails or is never consumed —
+      #      scripts/check-release.mjs refuses such a changeset on every PR. What reaches this guard is the
+      #      quiet case: a listed package that is private publishes nothing, and the run stays green.
       #
       #   3. NOTHING TO PUBLISH AT ALL. Same exit 0, nothing shipped.
       #
@@ -251,12 +256,14 @@ jobs:
           : "${PUBLISHED_PACKAGES:?PUBLISHED_PACKAGES must be set at the workflow level}"
 
           # `changesets/action` is a `switch (true)`: with changesets present it takes the VERSION branch
-          # even when only `publish:` is set, and never publishes at all. That commit shape is unusual (it
+          # even when only `publish-script:` is set, and never publishes at all. That commit shape is unusual (it
           # would have to bump a version ahead of the registry AND still carry a changeset), and with only
           # `id-token: write` the version branch cannot push, so it fails rather than silently doing
           # nothing — but it fails with an error about permissions that says nothing about the real cause.
-          if [ -n "$(find .changeset -maxdepth 1 -name '*.md' ! -iname 'README.md' -print -quit 2>/dev/null)" ]; then
-            echo "::error::this commit still carries changesets, so changesets/action would run its VERSION path instead of publishing. Merge the Version Packages PR (which consumes them) rather than releasing from a commit that both bumps versions and adds a changeset."
+          # The exclusions match what @changesets/read itself skips, so this refuses exactly when the action
+          # would take its version path — no more, no less.
+          if [ -n "$(find .changeset -maxdepth 1 -name '*.md' ! -iname 'README.md' ! -iname 'AGENTS.md' ! -iname 'CLAUDE.md' ! -iname 'GEMINI.md' -print -quit 2>/dev/null)" ]; then
+            echo "::error::this commit still carries changesets, so changesets/action would run its VERSION path instead of publishing. Merge the Version Packages PR (which consumes them) rather than releasing from a commit that both bumps versions and adds a changeset. One other cause since @changesets/cli 3.0: a changeset that names ONLY private packages is never consumed, because private packages are no longer versioned — delete it."
             exit 1
           fi
 
@@ -300,7 +307,7 @@ jobs:
               fail=1
               continue
             elif [ "$name_rc" -ne 0 ]; then
-              echo "::error::$NAME does not exist on the registry. A Trusted Publisher cannot be bound to a package that has never been published, so this tokenless workflow cannot create it — publish the name once by hand with interactive 2FA, bind its Trusted Publisher on npmjs.com, then re-run. Releasing now would publish the rest of the family concurrently and fail on this one, leaving a partial, immutable release."
+              echo "::error::$NAME does not exist on the registry. A Trusted Publisher cannot be bound to a package that has never been published, so this tokenless workflow cannot create it — publish the name once by hand with interactive 2FA, bind its Trusted Publisher on npmjs.com, then re-run. Releasing now would publish every dependency level below this one and fail here, leaving a partial, immutable release."
               fail=1
               continue
             fi
@@ -361,22 +368,34 @@ jobs:
         env:
           LEAK_SCAN_EXTRA: ${{ secrets.LEAK_SCAN_EXTRA }}
 
-      # `pnpm run release` = turbo build + `changeset publish`. npm authenticates via the OIDC token (no
-      # NPM_TOKEN) and NPM_CONFIG_PROVENANCE=true attaches a signed provenance attestation.
+      # Provenance is REQUIRED, not hoped for. `changeset publish` runs `pnpm publish` with no way to pass it a
+      # flag, and pnpm 12 asks for provenance only through `--provenance` (the NPM_CONFIG_PROVENANCE variable
+      # that npm read is ignored). Left to decide for itself, pnpm attaches provenance when publishing through
+      # Trusted Publishing, but if that lookup fails it only warns and publishes the tarball unsigned, which
+      # can never be undone. This puts scripts/provenance/ first on PATH: its `pnpm` passes every command
+      # (including the ones turbo makes) through to the next pnpm on PATH and adds `--provenance` to `pnpm publish`, so a failed attestation stops the
+      # publish instead.
+      - name: Require provenance on every publish
+        run: |
+          echo "$GITHUB_WORKSPACE/scripts/provenance" >> "$GITHUB_PATH"
+
+      # `pnpm run release` = turbo build + `changeset publish`, which runs `pnpm publish` for each package that
+      # is due. pnpm authenticates from this workflow's OIDC identity (Trusted Publishing; no NPM_TOKEN exists).
       #
-      # `createGithubReleases: false` moves tag-pushing and Release creation to the downstream job. It is
-      # what lets this job drop `contents: write` — see the permissions block above.
-      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+      # BOTH `create-github-releases: false` AND `push-git-tags: false` move tagging and Release creation to
+      # the downstream job — the thing that lets this job drop `contents: write`. In v1 the first flag also
+      # stopped tag pushing; since v2 it does not, and tags are pushed by default. Without the second flag
+      # the action would try to push one tag per package with an `id-token`-only token, get a 403 for each,
+      # log it as a warning, and carry on — so the guarantee would rest on a missing scope rather than on
+      # this configuration.
+      - uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         id: changesets
         with:
-          publish: pnpm run release
-          createGithubReleases: false
-        env:
-          # No NODE_AUTH_TOKEN. npm authenticates from this workflow's OIDC identity (Trusted Publishing);
-          # adding a token back would re-introduce the long-lived secret AND be rejected outright by the
-          # packages' "require 2FA and disallow tokens" setting.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
+          publish-script: pnpm run release
+          create-github-releases: false
+          push-git-tags: false
+        # No `env:` at all: no NODE_AUTH_TOKEN (Trusted Publishing needs none), and no GITHUB_TOKEN (see the
+        # prepare step: v2 throws if one disagrees with its `github-token` input).
 
       # A green publish step is not proof that anything published. Verify against the registry itself —
       # including that the set matches what pre-flight said, and that provenance is actually attached.
@@ -386,7 +405,7 @@ jobs:
           # this is the one place in a supply-chain-hardening file that would splice expression output into
           # a shell string — in the job holding the OIDC token. The github-release job below already does
           # it this way; match it rather than being the exception.
-          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
+          PUBLISHED: ${{ steps.changesets.outputs.published-packages }}
           EXPECTED: ${{ steps.preflight.outputs.expected }}
         run: node scripts/verify-published.mjs "$PUBLISHED" "$EXPECTED"
 
@@ -411,10 +430,10 @@ jobs:
     permissions:
       contents: write # create tags + release objects; NOT granted to the job that publishes
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # tags are pushed from here, so the tag objects need real history
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
       # One tag + one Release per published package, named exactly as `changesets/action` would have
@@ -462,7 +481,9 @@ jobs:
               fail=1
               continue
             fi
-            if ! gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag; then
+            prerelease=()
+            case "$version" in *-*) prerelease=(--prerelease) ;; esac # 1.0.0-rc.1 must not become "Latest"
+            if ! gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag "${prerelease[@]}"; then
               echo "::error::could not create the GitHub Release for $tag"
               fail=1
               continue

@@ -22,11 +22,18 @@
  *      protection rules". So if the environment was never created — or is deleted, or loses its reviewer —
  *      the publish job does not fail and does not pause. It publishes. The YAML is unchanged, the docs
  *      still describe an approval step, and the only evidence is a release that nobody approved.
- *      This repo shipped in exactly that state: `release.yml` and RELEASING.md both described the gate
- *      while the repo had zero environments configured.
+ *      It has happened: a repository's `release.yml` and RELEASING.md both described the gate while the
+ *      repository had zero environments configured.
  *
- * The decision logic is exported as pure functions so `scripts/check-release.test.mjs` can drive every
- * branch — including the ones that need a registry outage or a deleted environment to reach for real.
+ *   3. A PENDING CHANGESET NAMES A PACKAGE THAT CAN NEVER PUBLISH (offline). Since @changesets/cli 3.0,
+ *      private packages are never versioned. A changeset that names one alongside a public package makes
+ *      `changeset version` fail ("Mixed changesets"), so the Version PR stops updating; one that names only
+ *      private packages is never consumed, so every later release refuses because the commit "still
+ *      carries changesets". A name no manifest declares fails the same way. `pnpm changeset` hides private
+ *      packages from its menu, but a hand-written or generated changeset does not, so this checks every one.
+ *
+ * The decision logic is exported as pure functions so `tests/scripts/check-release.test.mjs` can drive
+ * every branch — including the ones that need a registry outage or a deleted environment to reach for real.
  *
  * Usage:
  *   node scripts/check-release.mjs                 # offline checks only
@@ -35,6 +42,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { parse as parseYaml } from 'yaml'
 
 export const ENVIRONMENT = 'release'
 
@@ -85,7 +93,7 @@ export function comparePackages(listed, manifests) {
         '       If this package is NEW: its npm name almost certainly does not exist yet, and a Trusted ' +
         'Publisher cannot be bound to a name that has never been published. Publish the name once by hand, ' +
         'bind its Trusted Publisher on npmjs.com, and only then add it to the list — otherwise the release ' +
-        'publishes the rest of the family concurrently and fails on this one, leaving a partial, immutable ' +
+        'publishes every dependency level below this one and then fails on it, leaving a partial, immutable ' +
         'release.\n       If it should never publish, mark it `private: true`.',
     )
   }
@@ -135,11 +143,15 @@ export function evaluateEnvironment({ status, body, slug, repoExists }) {
   }
   // RELEASING.md claims deployments are restricted to protected branches. An unverified claim in a
   // hardening doc is the same defect class as the missing environment itself, so check it too.
-  if (!rules.some((r) => r.type === 'branch_policy')) {
+  if (
+    !rules.some((r) => r.type === 'branch_policy') ||
+    body?.deployment_branch_policy?.protected_branches !== true
+  ) {
     problems.push(
-      `${slug}'s \`${ENVIRONMENT}\` environment has no deployment branch policy, so a release could be ` +
-        'approved from any branch — including one opened by a fork. RELEASING.md states deployments are ' +
-        'restricted to protected branches; make that true under Settings → Environments → release.',
+      `${slug}'s \`${ENVIRONMENT}\` environment does not restrict deployments to protected branches, so a ` +
+        'release could be approved from another branch — including one opened by a fork. RELEASING.md states ' +
+        'deployments are restricted to protected branches; make that true under Settings → Environments → ' +
+        'release → Deployment branches → Protected branches only.',
     )
   }
   return problems
@@ -175,6 +187,71 @@ export function findEscapedManifests(root, paths) {
     if (hits.length > 0) bad.push({ path: rel, hits })
   }
   return bad
+}
+
+/** Files in `.changeset/` that are not changesets — the same exclusions the release pre-flight applies. */
+const NOT_CHANGESETS = new Set(['README.MD', 'AGENTS.MD', 'CLAUDE.MD', 'GEMINI.MD'])
+
+/** The pending changesets under `root`, as `{ file, text }`. */
+export function readChangesets(root) {
+  const dir = join(root, '.changeset')
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((f) => f.endsWith('.md') && !NOT_CHANGESETS.has(f.toUpperCase()))
+    .sort()
+    .map((file) => ({ file, text: readFileSync(join(dir, file), 'utf8') }))
+}
+
+/**
+ * The package names a changeset bumps — read exactly the way @changesets/parse 1.0 reads them (the same
+ * frontmatter pattern, the same YAML library, the same checks), so this accepts and rejects what
+ * `changeset version` will. `null` when Changesets itself would refuse the file.
+ */
+export function changesetPackages(text) {
+  if (text.trim() === '') return null
+  const front = /\s*---([^]*?)\r?\n\s*---(\s*(?:\n|$)[^]*)/.exec(text)
+  if (!front) return null
+  let releases
+  try {
+    releases = parseYaml(front[1])
+  } catch {
+    return null
+  }
+  if (releases === null || releases === undefined) return []
+  if (typeof releases !== 'object' || Array.isArray(releases)) return null
+  const names = Object.keys(releases)
+  const valid = ['major', 'minor', 'patch', 'none']
+  if (names.some((n) => n.trim() === '' || !valid.includes(releases[n]))) return null
+  return names
+}
+
+/** Every pending changeset may name only packages that will actually publish. */
+export function checkChangesets(changesets, manifests) {
+  const byName = new Map(manifests.map((m) => [m.name, m]))
+  const problems = []
+  for (const { file, text } of changesets) {
+    const names = changesetPackages(text)
+    if (names === null) {
+      problems.push(`.changeset/${file} has no readable frontmatter of \`package: bump\` lines`)
+      continue
+    }
+    for (const name of names) {
+      const m = byName.get(name)
+      if (m === undefined) {
+        problems.push(
+          `.changeset/${file} names ${name}, which no manifest under packages/ declares — ` +
+            '`changeset version` cannot apply it. Fix the name or remove it from the changeset.',
+        )
+      } else if (m.private) {
+        problems.push(
+          `.changeset/${file} names ${name}, which is private. @changesets/cli 3 never versions a private ` +
+            'package: alongside a public one this makes `changeset version` fail, and on its own the ' +
+            'changeset is never consumed, so every later release refuses. Remove it from the changeset.',
+        )
+      }
+    }
+  }
+  return problems
 }
 
 /**
@@ -243,7 +320,10 @@ async function main(argv, root) {
 
   const manifestPaths = [
     'package.json',
-    ...readdirSync(join(root, 'packages'), { withFileTypes: true })
+    ...(existsSync(join(root, 'packages'))
+      ? readdirSync(join(root, 'packages'), { withFileTypes: true })
+      : []
+    )
       .filter((e) => e.isDirectory())
       .map((e) => `packages/${e.name}/package.json`),
   ]
@@ -253,6 +333,13 @@ async function main(argv, root) {
         "Valid JSON, invisible to prettier — and `description` is the text on the package's registry page, " +
         'so the mangling ships. Something re-serialised the manifest with ASCII-only output.',
     )
+  }
+
+  const changesets = readChangesets(root)
+  const csProblems = checkChangesets(changesets, readManifests(root))
+  problems.push(...csProblems)
+  if (csProblems.length === 0) {
+    ok(`${changesets.length} pending changeset(s) name only publishable packages`)
   }
 
   if (argv.includes('--environment')) {
@@ -299,7 +386,9 @@ async function main(argv, root) {
         // A 404 has two causes needing different fixes — missing environment, or a wrong slug. Both fail
         // closed, but sending someone to configure a setting on a page that isn't there wastes the signal.
         try {
-          repoExists = (await probe(`https://api.github.com/repos/${slug}`)).ok
+          // Only a definite answer counts: a 5xx here says nothing about whether the repository exists.
+          const repo = await probe(`https://api.github.com/repos/${slug}`)
+          repoExists = repo.status === 200 ? true : repo.status === 404 ? false : undefined
         } catch {
           /* leave unknown; the message degrades to the ambiguous form */
         }

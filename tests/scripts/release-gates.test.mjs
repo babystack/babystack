@@ -4,60 +4,129 @@
  */
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { partition } from '../../scripts/audit-release.mjs'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import {
+  partition,
+  projectOf,
+  publishableDirs,
+  unexplained,
+  workspaceProjects,
+} from '../../scripts/audit-release.mjs'
 import { scan, NEEDLES, parseExtraNeedles } from '../../scripts/verify-tarballs.mjs'
 
-describe('audit-release — only advisories that reach a PUBLISHED package block', () => {
-  const dirs = ['packages/core', 'packages/cli']
-  const adv = (severity, module_name, ...paths) => ({
-    severity,
-    module_name,
-    findings: [{ paths }],
+// Real `pnpm audit --json` output from pnpm 12.4.2, the version CI runs — captured, never written by hand. A
+// hand-written fixture in pnpm 9's shape (`packages/core > dep@1.0.0`) once kept these tests green while pnpm
+// 12 switched to `packages__core>dep` and the gate silently stopped blocking anything. Re-capture on a pnpm bump.
+//   reaches-published: `pnpm audit --prod --json` on on-a-diet/onadiet at 5be640a (sharp 0.34, svgo 4.0)
+//   examples-only:     `pnpm audit --prod --json` on babystack/babystack at fde6336 (only examples/ affected)
+//   full-every-root:   `pnpm audit --json` on this branch (paths start at `.`, examples/ and packages/)
+const HERE = dirname(fileURLToPath(import.meta.url))
+const fixture = (name) =>
+  JSON.parse(readFileSync(join(HERE, 'fixtures', `pnpm-12.4.2-audit-${name}.json`), 'utf8'))
+const advisoriesOf = (report) => Object.values(report.advisories)
+
+describe('audit-release — real pnpm 12 output, both directions', () => {
+  test('BLOCKS high advisories that reach published packages', () => {
+    const published = [
+      'packages/cli',
+      'packages/core',
+      'packages/image',
+      'packages/pdf',
+      'packages/svg',
+    ]
+    const projects = new Set(['.', ...published, 'packages/testkit'])
+    const report = fixture('prod-reaches-published')
+    assert.deepEqual(unexplained(report, 'high'), [])
+    const { blocking, informational } = partition(advisoriesOf(report), published, projects, 'high')
+    assert.equal(blocking.length, 3)
+    assert.deepEqual(informational, [])
+    for (const a of blocking) {
+      assert.ok(a.reaches.length > 0, `${a.module_name} should reach a published package`)
+      assert.deepEqual(a.unplaced, [])
+    }
   })
 
-  test('blocks an advisory that reaches a published package', () => {
-    const { blocking } = partition(
-      [adv('high', 'evil', 'packages/core > evil@1.0.0')],
-      dirs,
-      'high',
-    )
-    assert.equal(blocking.length, 1)
-    assert.deepEqual(blocking[0].reaches, ['packages/core'])
-  })
-
-  test('does NOT block one that only reaches a workspace project that is never published', () => {
-    // The real case: `examples/users-api > drizzle-orm`. A gate that fails for something the release
-    // cannot fix is one people learn to bypass.
+  test('does NOT block advisories that only reach a project that is never published', () => {
+    const published = ['packages/core', 'packages/cli']
+    const projects = new Set(['.', ...published, 'examples/users-api'])
+    const report = fixture('prod-examples-only')
+    assert.deepEqual(unexplained(report, 'moderate'), [])
     const { blocking, informational } = partition(
-      [adv('high', 'drizzle-orm', 'examples/users-api > drizzle-orm@0.36.4')],
-      dirs,
-      'high',
+      advisoriesOf(report),
+      published,
+      projects,
+      'moderate',
     )
     assert.deepEqual(blocking, [])
-    assert.equal(informational.length, 1)
+    assert.equal(informational.length, 4)
+    for (const a of informational) assert.deepEqual(a.roots, ['examples/users-api'])
   })
 
-  test('blocks when an advisory reaches BOTH a published and an unpublished project', () => {
+  test('places every path start pnpm 12 writes: the root, examples/ and packages/', () => {
+    const roots = advisoriesOf(fixture('full-every-root'))
+      .flatMap((a) => a.findings.flatMap((f) => f.paths))
+      .map(projectOf)
+    assert.ok(roots.includes('.'))
+    assert.ok(roots.includes('examples/users-api'))
+    assert.ok(roots.includes('packages/core'))
+    for (const r of roots)
+      assert.match(r, /^(\.|(packages|examples)\/[\w.-]+)$/, `unplaceable root: ${r}`)
+  })
+
+  test('the workspace projects come from the lockfile, including pnpm 12 multi-document lockfiles', () => {
+    const projects = workspaceProjects(
+      readFileSync(join(HERE, '..', '..', 'pnpm-lock.yaml'), 'utf8'),
+    )
+    assert.ok(projects.has('.'))
+    for (const dir of publishableDirs())
+      assert.ok(projects.has(dir), `${dir} missing from the lockfile`)
+  })
+})
+
+describe('audit-release — fails closed on what it cannot read', () => {
+  const adv = (severity, ...paths) => ({ severity, module_name: 'x', findings: [{ paths }] })
+  const published = ['packages/core']
+  const projects = new Set(['.', 'packages/core', 'examples/app'])
+
+  test('a path starting at an unknown project blocks', () => {
+    const { blocking } = partition([adv('high', 'mystery__thing>x')], published, projects, 'high')
+    assert.equal(blocking.length, 1)
+    assert.deepEqual(blocking[0].unplaced, ['mystery/thing'])
+  })
+
+  test('an advisory with no path at all blocks', () => {
     const { blocking } = partition(
-      [adv('high', 'shared', 'examples/demo > shared@1.0.0', 'packages/cli > shared@1.0.0')],
-      dirs,
+      [{ severity: 'high', module_name: 'x' }],
+      published,
+      projects,
       'high',
     )
     assert.equal(blocking.length, 1)
-    assert.deepEqual(blocking[0].reaches, ['packages/cli'])
+  })
+
+  test('totals the listed advisories do not account for are reported', () => {
+    const report = {
+      advisories: { 1: adv('high', 'examples__app>x') },
+      metadata: { vulnerabilities: { high: 2 } },
+    }
+    assert.deepEqual(unexplained(report, 'high'), ['pnpm counts 2 high but lists 1'])
+    assert.deepEqual(unexplained({ advisories: {} }, 'high'), [
+      'the report carries no metadata.vulnerabilities totals',
+    ])
   })
 
   test('respects the severity threshold in both directions', () => {
-    const a = [adv('moderate', 'x', 'packages/core > x@1.0.0')]
-    assert.equal(partition(a, dirs, 'high').blocking.length, 0)
-    assert.equal(partition(a, dirs, 'moderate').blocking.length, 1)
+    const a = [adv('moderate', 'packages__core>x')]
+    assert.equal(partition(a, published, projects, 'high').blocking.length, 0)
+    assert.equal(partition(a, published, projects, 'moderate').blocking.length, 1)
   })
 
-  test('an advisory with no findings cannot block', () => {
-    assert.equal(
-      partition([{ severity: 'high', module_name: 'x' }], dirs, 'high').blocking.length,
-      0,
-    )
+  test('reads pnpm 9 paths too', () => {
+    assert.equal(projectOf('packages/core > dep@1.0.0 > sub@2.0.0'), 'packages/core')
+    assert.equal(projectOf('packages__core>dep>sub'), 'packages/core')
+    assert.equal(projectOf('.>dep'), '.')
   })
 })
 
@@ -65,7 +134,7 @@ describe('verify-tarballs — what must never reach the registry', () => {
   test('catches each needle class', () => {
     const cases = {
       'private key': ['-----BEGIN RSA PRIVATE KEY-----\nabc'],
-      'AWS access key id': ['AKIAIOSFODNN7EXAMPLE'],
+      'AWS access key id': ['AKIA1234567890ABCDEF'],
       'npm token': ['npm_abcdefghijklmnopqrstuvwxyz0123456789'],
       'GitHub token': ['ghp_abcdefghijklmnopqrstuvwxyz0123456789'],
       'absolute home path': ['at /Users/someone/projects/thing.ts:1'],
@@ -111,9 +180,18 @@ describe('verify-tarballs — what must never reach the registry', () => {
       'UTF-8 and x86-64 at 2026-09-22T10:00:00Z',
       'grid-template-columns: 1fr; gap: 8px',
       'finding the right driver',
+      'redactSecrets("AKIAIOSFODNN7EXAMPLE")', // AWS's documented example key
     ]
     for (const text of benign) assert.deepEqual(scan(text), [], `false positive on: ${text}`)
   })
+})
+
+test('every needle stays linear on a long unbroken run (a minified bundle or an embedded token)', () => {
+  // One needle once took 50 s on 300 KB of `ab-c.d_` repeated, which would hold an approved release job.
+  const run = 'ab-c.d_'.repeat(43000)
+  const started = Date.now()
+  scan(run)
+  assert.ok(Date.now() - started < 2000, `scan took ${Date.now() - started} ms`)
 })
 
 describe('verify-tarballs — private needles come from outside the repository', () => {

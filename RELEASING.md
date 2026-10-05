@@ -44,21 +44,23 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
   the reason given under [Pre-flight guards](#pre-flight-guards), and it **fails closed**: a registry
   timeout or 5xx aborts the run rather than being read as "not published".
 - **`publish`** (gated by the **`release` environment** → your manual approval) — runs **only when a publish
-  is due**. It upgrades npm to ≥ 11.5.1, builds, and runs `pnpm run release` (`turbo run build &&
-changeset publish`), which uploads each not-yet-published package. Authentication is the GitHub **OIDC**
-  token (there is **no `NPM_TOKEN`**), and `NPM_CONFIG_PROVENANCE=true` attaches a signed provenance
-  attestation. Before it publishes, it **re-runs the fast checks** — lint, arch, format, typecheck, test,
-  build, smoke — against the exact commit being released, then runs the
+  is due**. It builds and runs `pnpm run release` (`turbo run build && changeset publish`), which
+  runs `pnpm publish` for each not-yet-published package. Authentication is the GitHub **OIDC** token (there
+  is **no `NPM_TOKEN`**), and every `pnpm publish` is given `--provenance`, so each package carries a signed
+  provenance attestation or the publish fails. Before it publishes, it **re-runs the fast checks** — lint (architecture rules included), format, typecheck, unit tests, the release
+  tests, build, smoke and the release-setup check — against the exact commit being released, then runs the
   [pre-flight guards](#pre-flight-guards). Afterwards it **verifies from the registry
   API** that every expected package really resolves at the new version _and_ carries a provenance
   attestation — a green publish step is not proof that anything published.
 - **`github-release`** — pushes the git tags and cuts one GitHub Release per published package, with notes
-  from that package's `CHANGELOG.md`. It runs **only after `publish` succeeds**, so a Release object can
-  never describe a version that never reached npm.
+  from that package's `CHANGELOG.md`. It runs whenever `publish` published anything — including a run that
+  failed partway — and only for the packages that reached npm, so a Release never describes a version the
+  registry lacks. A prerelease version (`1.0.0-rc.1`) is marked as a prerelease, never as "Latest".
 
 The re-run is not belt-and-braces. The "Version Packages" PR is opened by `changesets/action` using
-`GITHUB_TOKEN`, and GitHub does not start workflow runs for events raised by that token — so `ci.yml` does
-**not** run automatically on the Version PR. Merging it (the routine thing to do with a bot PR that "just
+`GITHUB_TOKEN`, and GitHub holds CI on a PR opened that way until a maintainer approves the runs — so `ci.yml`
+does **not** run on the Version PR by itself. (Approve them from the PR's Checks tab; with required status
+checks on `main`, the PR cannot merge until you do.) Merging it (the routine thing to do with a bot PR that "just
 bumps versions") would otherwise publish a tree that was never gated on a PR at all.
 
 **Two things it does _not_ re-run, deliberately — know them before you approve.** The Docker-backed
@@ -92,14 +94,16 @@ approval prompt appears **only for real releases** — never for an ordinary fea
 Everything that can still be _fixed_ is checked before the one step that cannot be undone. npm tarballs are
 immutable outside a 72-hour window; every guard below is a read-only probe that costs seconds.
 
-| Guard                     | Refuses when                                                                                  | Why it exists                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Package set**           | the publishable manifests under `packages/` are not exactly the names in `PUBLISHED_PACKAGES` | A glob that comes up short makes every per-package loop below it iterate **zero times and pass**. Naming the packages rather than counting them catches what a count cannot: a rename, or one package removed while another is added. A package present but _unlisted_ is refused because its npm name has almost certainly never been published, so no Trusted Publisher can exist for it and this tokenless pipeline cannot create one. |
-| **Unbootstrapped name**   | a publishable package does not exist on the registry at all                                   | A Trusted Publisher is a **per-package** setting that cannot be bound to a name that has never been published. `changeset publish` publishes the family **concurrently** (up to ten at a time), so a failure on one does not stop the others — they land on the registry immutably while it does not. See [Bootstrapping a new package name](#bootstrapping-a-new-package-name).                                                          |
-| **Nothing to publish**    | _every_ publishable version is already on the registry                                        | `changeset publish` **silently skips** a version that is already there and exits 0. A re-run would go green having published nothing at all — indistinguishable from success in the log. (Skipping _some_ packages is normal and correct here: Changesets bumps only what changed, so an unchanged package keeps its version and must not be republished. Only "all of them" is the failure.)                                             |
-| **Still-private package** | a listed package carries `private: true`                                                      | `changeset publish` filters private packages out with **no log line at all** and exits 0, while `changeset version` still bumps them — so the Version PR looks complete and the release ships the rest of the family depending on a package that never went up. A package that should _never_ publish is left out of `PUBLISHED_PACKAGES` _and_ marked private; the guard checks both, so neither alone can hide a mistake.               |
-| **Missing release notes** | a package about to publish has no `CHANGELOG.md` section for its version                      | A changelog is a two-line edit; an npm tarball is immutable outside a 72-hour window. Checked _before_ the publish rather than in `github-release`, where it would surface with nothing left to do about it.                                                                                                                                                                                                                              |
-| **Approval gate present** | the `release` environment is missing or has no required reviewer                              | See the box above.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Guard                                        | Refuses when                                                                                                                     | Why it exists                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Package set**                              | the publishable manifests under `packages/` are not exactly the names in `PUBLISHED_PACKAGES`                                    | A glob that comes up short makes every per-package loop below it iterate **zero times and pass**. Naming the packages rather than counting them catches what a count cannot: a rename, or one package removed while another is added. A package present but _unlisted_ is refused because its npm name has almost certainly never been published, so no Trusted Publisher can exist for it and this tokenless pipeline cannot create one.                                             |
+| **Unbootstrapped name**                      | a publishable package does not exist on the registry at all                                                                      | A Trusted Publisher is a **per-package** setting that cannot be bound to a name that has never been published. `changeset publish` publishes in **dependency levels** and stops at the first level with a failure — so every level below the new package has already landed, immutably, and nothing above it publishes. See [Bootstrapping a new package name](#bootstrapping-a-new-package-name).                                                                                    |
+| **Nothing to publish**                       | _every_ publishable version is already on the registry                                                                           | `changeset publish` **silently skips** a version that is already there and exits 0. A re-run would go green having published nothing at all — indistinguishable from success in the log. (Skipping _some_ packages is normal and correct here: Changesets bumps only what changed, so an unchanged package keeps its version and must not be republished. Only "all of them" is the failure.)                                                                                         |
+| **Still-private package**                    | a listed package carries `private: true`                                                                                         | `changeset publish` filters private packages out with **no log line at all** and exits 0. Since `@changesets/cli` 3.0 `changeset version` never versions a private package either; a public package that depends on one makes `changeset version` fail, and a changeset that names one is refused on every PR (next row). A package that should _never_ publish is left out of `PUBLISHED_PACKAGES` _and_ marked private; the guard checks both, so neither alone can hide a mistake. |
+| **Changeset names an unpublishable package** | a pending changeset names a private package, or a name no manifest declares — checked on every PR by `scripts/check-release.mjs` | `@changesets/cli` 3 never versions a private package. Named alongside a public one, `changeset version` fails and the Version PR stops updating; named alone, the changeset is never consumed, and every later release refuses because the commit "still carries changesets".                                                                                                                                                                                                         |
+| **Pending changeset**                        | the commit being released still carries a changeset                                                                              | `changesets/action` would run its _version_ path instead of publishing. Merge the Version Packages PR, which consumes the changesets, rather than releasing from a commit that both bumps versions and adds one.                                                                                                                                                                                                                                                                      |
+| **Missing release notes**                    | a package about to publish has no `CHANGELOG.md` section for its version                                                         | A changelog is a two-line edit; an npm tarball is immutable outside a 72-hour window. Checked _before_ the publish rather than in `github-release`, where it would surface with nothing left to do about it.                                                                                                                                                                                                                                                                          |
+| **Approval gate present**                    | the `release` environment is missing or has no required reviewer                                                                 | See the box above.                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 Both registry probes **fail closed**. `npm view` exits non-zero for a missing name _and_ for a 5xx, a rate
 limit or a timeout — so the guards classify on the error text and treat **only a clean 404** as "not
@@ -117,11 +121,17 @@ placed after it reads the **bumped** versions, so an ordinary feature merge that
 looks like a pending release: the approval prompt fires, and the gate's whole value is that the prompt means
 something.
 
-**Why the family is published concurrently, and what that costs.** `changeset publish` publishes up to ten
-packages at once rather than in dependency order, so a transient failure on one does not stop the others —
-they land immutably while it does not. Cross-package dependencies use `workspace:^` (not `workspace:*`) so
-that pnpm publishes a **caret** range: a straggler can then be recovered with a patch bump, which an exact
-pin would not admit.
+**How the family is published, and what a failure leaves behind.** `changeset publish` (3.x) publishes in
+**dependency levels** — for this repo, `core` → `docker` → `mysql` → `runtime` → `cli` and `vitest` →
+the `babystack` flagship — with up to ten packages at a time inside a level. It stops at the first level with a
+failure. So a dependency always lands before anything that depends on it, and a failure leaves exactly this
+on the registry, immutably: every level below the failing one, plus the failing package's same-level
+siblings. Re-running after the fix publishes the rest; already-published versions are skipped.
+
+Cross-package dependencies use `workspace:^` (not `workspace:*`), so pnpm publishes a **caret** range rather
+than an exact pin. That matters after a release rather than during one: when a dependency needs a patch,
+consumers of everything that depends on it pick the patch up automatically. An exact pin would force a
+republish of every dependent to ship a one-line fix, and would stop consumers deduplicating the family.
 
 ## One-time setup
 
@@ -143,8 +153,9 @@ pipeline, not of what is currently on the registry.
   > authenticated maintainer (`npm trust list <package>`), and nothing in CI or in `release.yml` has that
   > identity, so the pipeline cannot confirm its own authentication is configured. The failure is
   > fail-safe rather than silent — OIDC auth is rejected and
-  > the publish errors — but `changeset publish` publishes the family **concurrently**, so the packages
-  > whose bindings _were_ correct are already on the registry, immutably, while the one that failed is not.
+  > the publish errors — but `changeset publish` stops only at the end of the failing dependency level,
+  > so every level below it, and that package's same-level siblings, are already on the registry,
+  > immutably.
   > **Verify all seven before the first pipeline release** — `npm trust list <package>` reads the bindings
   > for an authenticated maintainer, which is the check no CI gate can make for you.
 
@@ -165,9 +176,9 @@ pipeline, not of what is currently on the registry.
 **Adding a package to `packages/` will fail CI**, deliberately, until you do this. That is the guard
 working: this pipeline is tokenless, it authenticates against a **per-package** npm Trusted Publisher, and a
 Trusted Publisher **cannot be bound to a name that has never been published**. So a brand-new name has no
-way to publish through automation — and because `changeset publish` publishes the family **concurrently**,
-releasing anyway would put every other package on the registry and fail only on the new one, leaving a
-partial release that npm will not let you take back.
+way to publish through automation — and because `changeset publish` publishes level by level, releasing
+anyway would put every dependency level below the new package on the registry and then fail on it, leaving
+a partial release that npm will not let you take back.
 
 The order is fixed:
 
@@ -177,7 +188,7 @@ The order is fixed:
 2. **Publish the name once by hand**, with interactive 2FA, at a prerelease version:
    ```bash
    cd packages/<new>
-   npm publish --access public --tag rc      # requires npm >= 11.5.1 and your interactive 2FA
+   pnpm publish --access public --tag rc   # pnpm, not npm: it rewrites workspace:^ ranges; npm ships them raw
    ```
 3. **Bind its Trusted Publisher** on npmjs.com → the package → Settings → Trusted Publisher: GitHub Actions,
    repo `babystack/babystack`, workflow `release.yml`, environment `release`. Set publishing access to
@@ -204,8 +215,9 @@ unexercised publish script is its own hazard.
 
 The required reviewer approves a **run**, not an **artifact**. You click approve before the tarball exists,
 so the bytes that actually reach the registry are the one part of the release nobody has looked at. npm's
-staged-publish flow would move the approval onto the packed tarball; Changesets cannot drive it today, so
-this is **owed work, not done** — it is tracked in [the roadmap](docs/ROADMAP.md#release-hardening--owed-work).
+staged-publish flow would move the approval onto the packed tarball. Changesets 3 has the pieces — pack in an
+unprivileged job (`changeset pack --out-dir`), approve, then `changeset publish --from-pack-dir` — but this
+pipeline does not use them yet, so this is **owed work, not done** — it is tracked in [the roadmap](docs/ROADMAP.md#release-hardening--owed-work).
 
 Two things narrow the gap in the meantime, both running before the publish: `scripts/verify-tarballs.mjs`
 packs every publishable package and scans the tarball contents — including `dist/` and the sourcemaps'
@@ -235,8 +247,9 @@ present (this is what provenance looks like from outside), and the GitHub Releas
 
 ## Manual / break-glass release
 
-Only if the pipeline is down and a release cannot wait. Requires npm ≥ 11.5.1 and your **interactive npm
-2FA** (automation tokens are disallowed by design):
+Only if the pipeline is down and a release cannot wait. Requires your **interactive npm 2FA** (automation
+tokens are disallowed by design), and the result carries **no provenance**: only the pipeline's OIDC identity
+can attest to where a package was built.
 
 ```bash
 pnpm install --frozen-lockfile   # never a loose install on the one release nobody is reviewing carefully
@@ -256,15 +269,15 @@ Prefer the automated flow; this path exists so a broken pipeline never blocks a 
   deployments_).
 - **OIDC auth failed for a package** — its npm **Trusted Publisher** isn't set, or the repo / workflow /
   environment don't match. Fix it on npmjs.com → that package → Trusted Publisher. Nothing
-  _incorrect_ is published — but `changeset publish` publishes the family **concurrently**, so the packages
-  that authenticated successfully are already on the registry and cannot be unpublished. Fix the binding and
+  _incorrect_ is published — but everything in the dependency levels below the failure, and the failing
+  package's same-level siblings, is already on the registry and cannot be unpublished. Fix the binding and
   re-run; the already-published packages are skipped.
 - **"is publishable but is not in PUBLISHED_PACKAGES"** / **"no publishable manifest declares that name"** —
   a package was added, removed, renamed, or flipped to `private: true`. If added, follow [Bootstrapping a new package name](#bootstrapping-a-new-package-name)
   _before_ adding it to `PUBLISHED_PACKAGES`.
 - **"X does not exist on the registry"** — same thing: the name was never published, so no Trusted Publisher
   can exist for it. Bootstrap it.
-- **"every publishable version is already on the registry"** — there is nothing to release. The Version
+- **"every expected version is already on the registry"** — there is nothing to release. The Version
   Packages PR hasn't been merged, or this is a re-run of a release that already completed.
 - **"could not reach the registry to check X"** — a 5xx, a rate limit or a timeout. The guards **fail
   closed** on purpose: a probe that could not answer is never read as "safe to publish". Re-run the job.
@@ -274,8 +287,8 @@ Prefer the automated flow; this path exists so a broken pipeline never blocks a 
   `changeset publish` exits non-zero. The packages that _did_ reach npm are there immutably; the
   `github-release` job still runs for exactly those, so they get their tag and Release rather than being
   left untracked. Fix whatever failed (usually a Trusted Publisher binding) and re-run: the already-published
-  packages are skipped. Because cross-package deps are published as **caret** ranges, a straggler can also be
-  recovered by a patch bump — an exact pin would not admit that.
+  packages are skipped. Because `changeset publish` goes level by level, nothing that depends on the failed
+  package was published, so no consumer can install a half-released family.
 - **A release published but has no provenance** — check that the run used the `publish` job (not a manual
   `pnpm run release`), that `id-token: write` is still on that job, and that the runner was GitHub-hosted.
   A self-hosted runner has no OIDC identity to attest to and silently costs the attestation.

@@ -19,7 +19,7 @@
  */
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -79,10 +79,42 @@ describe('release workflow — shape', () => {
   //   • the pre-flight echoes "changeset publish will skip it" as an explanatory log line.
   // So: the changesets action's `publish:` input, or a run LINE that begins with a publish command —
   // prose lives inside `echo`, which never starts a line with `npm`/`pnpm`/`changeset`.
-  const PUBLISH_LINE =
-    /^(npm|pnpm)\s+(-r\s+)?(--filter\s+\S+\s+)?publish\b|^changeset\s+publish\b|^pnpm\s+run\s+release\b/
+  const PUBLISH_LINE = new RegExp(
+    [
+      String.raw`^(npx\s+|pnpm\s+(exec\s+|dlx\s+)?)?changeset\s+publish\b`, // any route to changeset publish
+      String.raw`^(npm|pnpm)\s+((-r|-w|--recursive)\s+)*(--filter\s+\S+\s+)?publish\b`,
+      String.raw`^(npm|pnpm)\s+((-w|--workspace-root)\s+)?(run\s+)?release(?=\s|$)`, // the release script
+    ].join('|'),
+  )
   const publishesInStep = (s) =>
-    Boolean(s.with?.publish) || (s.run ?? '').split('\n').some((l) => PUBLISH_LINE.test(l.trim()))
+    Boolean(s.with?.['publish-script']) ||
+    (s.run ?? '').split('\n').some((l) => PUBLISH_LINE.test(l.trim()))
+
+  test('the publish detector catches every route to a publish, and no prose', () => {
+    for (const line of [
+      'changeset publish',
+      'pnpm changeset publish',
+      'pnpm exec changeset publish',
+      'npx changeset publish',
+      'pnpm publish --filter onadiet',
+      'pnpm -r publish',
+      'npm publish --access public',
+      'pnpm release',
+      'pnpm run release',
+      'pnpm -w run release',
+      'npm run release',
+    ]) {
+      assert.match(line, PUBLISH_LINE, `missed: ${line}`)
+    }
+    for (const line of [
+      'echo "changeset publish will skip it"',
+      'echo "should_publish=true" >> "$GITHUB_OUTPUT"',
+      'pnpm run release-notes',
+      'node scripts/release-notes.mjs "$name" "$version"',
+    ]) {
+      assert.doesNotMatch(line, PUBLISH_LINE, `false positive: ${line}`)
+    }
+  })
 
   test('nothing outside the publish job runs a publish', () => {
     const elsewhere = Object.entries(wf.jobs)
@@ -99,9 +131,9 @@ describe('release workflow — shape', () => {
 
   test('a release is never cancelled in flight', () => {
     assert.equal(job('publish').concurrency['cancel-in-progress'], false)
-    // prepare only refreshes a PR, so superseding it is correct — and it must NOT share publish's group,
-    // or a release parked on the approval gate would let each new push cancel the queued prepare.
-    assert.equal(job('prepare').concurrency['cancel-in-progress'], true)
+    // prepare also decides whether its commit is due a release, so a newer push must not cancel it — and it
+    // must NOT share publish's group, or a release parked on the approval gate would hold every prepare.
+    assert.equal(job('prepare').concurrency['cancel-in-progress'], false)
     assert.notEqual(job('prepare').concurrency.group, job('publish').concurrency.group)
   })
 
@@ -127,8 +159,20 @@ describe('release workflow — ORDER IS LOAD-BEARING', () => {
   test('publish: everything fixable precedes the irreversible publish', () => {
     const publishStep = stepLabels('publish').findIndex((l) => /changesets\/action/.test(l))
     assert.ok(publishStep >= 0, 'publish does not run changesets/action')
+    for (const script of [
+      'lint',
+      'format:check',
+      'typecheck',
+      'test',
+      'test:release',
+      'build',
+      'smoke',
+    ]) {
+      const i = job('publish').steps.findIndex((s) => (s.run ?? '').trim() === `pnpm run ${script}`)
+      assert.ok(i >= 0, `publish does not run \`pnpm run ${script}\``)
+      assert.ok(i < publishStep, `\`pnpm run ${script}\` (step ${i}) must run before the publish`)
+    }
     for (const [what, re] of [
-      ['the full gate', /pnpm run test$/],
       ['the release-setup re-verification', /Re-verify the release setup/],
     ]) {
       const i = indexOf('publish', re)
@@ -160,19 +204,137 @@ describe('release workflow — ORDER IS LOAD-BEARING', () => {
   })
 })
 
-describe('release workflow — release-toolchain rules', () => {
-  test('npm is pinned to a FLOOR, never @latest', () => {
-    const runs = job('publish').steps.map((s) => s.run ?? '')
-    const upgrade = runs.find((r) => /npm install -g/.test(r))
-    assert.ok(upgrade, 'the publish job does not upgrade npm')
-    assert.doesNotMatch(upgrade, /npm@latest/)
-    assert.match(upgrade, /npm@\^\d+\.\d+\.\d+/)
+describe('release workflow — changesets/action v2 contract', () => {
+  const changesetsSteps = () =>
+    Object.values(wf.jobs).flatMap((j) =>
+      j.steps.filter((s) => (s.uses ?? '').startsWith('changesets/action@')),
+    )
+  const publishStep = () => job('publish').steps.find((s) => s.id === 'changesets')
+
+  test('the action major matches the @changesets/cli major — the half-migration guard', () => {
+    // action v1 parses `New tag:` lines out of stdout; CLI 3 never prints them and reports through a
+    // CHANGESETS_OUTPUT file instead. Pairing action v1 with CLI 3 therefore publishes for real and then
+    // reports `published: false` with an empty package list — packages on npm, no tags, no Releases.
+    // Dependabot groups npm and actions updates SEPARATELY, so either half can arrive alone, and CI never
+    // runs release.yml. This test is the only thing that would notice.
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    const actionMajors = [...raw.matchAll(/changesets\/action@[0-9a-f]{40} # v(\d+)/g)].map((m) =>
+      Number(m[1]),
+    )
+    assert.ok(
+      actionMajors.length >= 2,
+      'expected both changesets/action steps to carry a # vN comment',
+    )
+    assert.equal(
+      new Set(actionMajors).size,
+      1,
+      'the two changesets/action steps are on different majors',
+    )
+    // The INSTALLED CLI is the authority: it is what `changeset publish` runs, wherever its range is declared.
+    const installed = JSON.parse(
+      readFileSync(join(ROOT, 'node_modules/@changesets/cli/package.json'), 'utf8'),
+    ).version
+    assert.equal(
+      Number(installed.split('.')[0]),
+      actionMajors[0] + 1,
+      `changesets/action v${actionMajors[0]} pairs with @changesets/cli ${actionMajors[0] + 1}.x, not ${installed}`,
+    )
+    // And a catalog range, when there is one, must agree — so the next install cannot drift.
+    const ws = readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
+    const range = /^\s+'@changesets\/cli':\s*[\^~]?(\d+)\./m.exec(ws)
+    if (range) assert.equal(Number(range[1]), actionMajors[0] + 1, 'the catalog range disagrees')
   })
 
-  test('every action is pinned to a full commit SHA', () => {
-    const uses = Object.values(wf.jobs).flatMap((j) => j.steps.map((s) => s.uses).filter(Boolean))
-    assert.ok(uses.length > 0)
-    for (const u of uses) assert.match(u, /@[0-9a-f]{40}$/, `${u} is not pinned to a full SHA`)
+  test('uses only inputs the pinned action declares — v2 throws on v1 names', () => {
+    // The `inputs:` of changesets/action v2.1.2's action.yml. An allowlist, not a list of the renamed v1
+    // inputs: v2 throws on any input it does not know, `title` and `commitMode` included.
+    const V2 = new Set([
+      'github-token',
+      'publish-script',
+      'version-script',
+      'commit-message',
+      'pr-title',
+      'pr-draft',
+      'pr-base-branch',
+      'create-github-releases',
+      'push-git-tags',
+      'push-with-git-cli',
+      'cwd',
+    ])
+    for (const s of changesetsSteps()) {
+      for (const input of Object.keys(s.with ?? {})) {
+        assert.ok(
+          V2.has(input),
+          `changesets/action step uses "${input}", which v2.1.2 does not declare`,
+        )
+      }
+    }
+  })
+
+  test('the publish step turns off BOTH releases and tag pushing', () => {
+    // Since v2, `create-github-releases: false` no longer stops tag pushing. Without `push-git-tags: false`
+    // the action tries to push tags with an id-token-only token, gets a 403 per package, warns, and carries
+    // on — so the guarantee would rest on a missing scope rather than on configuration.
+    assert.equal(publishStep().with['create-github-releases'], false)
+    assert.equal(publishStep().with['push-git-tags'], false)
+  })
+
+  test('reads the RENAMED output — a stale name evaluates to an empty string', () => {
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    assert.doesNotMatch(raw, /steps\.changesets\.outputs\.publishedPackages/)
+    assert.match(
+      job('publish').outputs.publishedPackages,
+      /steps\.changesets\.outputs\.published-packages/,
+    )
+  })
+
+  test('passes no GITHUB_TOKEN env to the action — v2 throws if it disagrees with the input', () => {
+    for (const s of changesetsSteps()) assert.equal(s.env?.GITHUB_TOKEN, undefined)
+  })
+})
+
+describe('release workflow — release-toolchain rules', () => {
+  test('the publish job installs no npm of its own: pnpm 12 publishes without it', () => {
+    // An `npm install -g` here would pull a registry package, younger than the 7-day cooldown, into the one
+    // job holding the OIDC token, for a tool the publish never calls.
+    for (const s of job('publish').steps) assert.doesNotMatch(s.run ?? '', /\bnpm (install|i) -g\b/)
+  })
+
+  test('provenance is required: the shim goes on PATH before the publish step', () => {
+    const steps = job('publish').steps
+    const shim = steps.findIndex((s) => s.name === 'Require provenance on every publish')
+    assert.ok(shim >= 0, 'the provenance step is missing')
+    assert.ok(
+      shim < indexOfId('publish', 'changesets'),
+      'the provenance step must run before publishing',
+    )
+    assert.match(steps[shim].run, /scripts\/provenance.*GITHUB_PATH/)
+  })
+
+  test('nothing relies on NPM_CONFIG_PROVENANCE: pnpm 12 ignores it', () => {
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    assert.doesNotMatch(raw, /^\s*NPM_CONFIG_PROVENANCE:/m)
+  })
+
+  test('every action in EVERY workflow is pinned to a full commit SHA', () => {
+    // Every workflow, not just this one. The first version of this test parsed only release.yml, and
+    // ci.yml sat on mutable `@v4` tags the whole time without it noticing — a tag can be moved to point at
+    // new code, and the job that runs on every pull request is exactly where that matters.
+    const dir = join(ROOT, '.github/workflows')
+    const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))
+    assert.ok(files.length > 1, 'sanity: more than one workflow exists')
+    const unpinned = []
+    for (const f of files) {
+      const w = parse(readFileSync(join(dir, f), 'utf8'))
+      for (const [name, j] of Object.entries(w.jobs ?? {})) {
+        for (const s of j.steps ?? []) {
+          if (s.uses && !s.uses.startsWith('./') && !/@[0-9a-f]{40}$/.test(s.uses)) {
+            unpinned.push(`${f} › ${name}: ${s.uses}`)
+          }
+        }
+      }
+    }
+    assert.deepEqual(unpinned, [])
   })
 
   test('PUBLISHED_PACKAGES is declared at the workflow level', () => {

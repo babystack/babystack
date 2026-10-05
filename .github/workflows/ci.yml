@@ -5,8 +5,9 @@ on:
     branches: [main]
   pull_request:
 
-# NOTE (hardening follow-up, tracked in the roadmap): pin these actions to full commit SHAs.
-# Dependabot (github-actions, monthly) is configured to keep them current once pinned.
+# Actions are pinned to full commit SHAs (supply-chain hardening): a tag can be moved to point at new code,
+# a commit cannot. The trailing "# vX" comment is the human-readable version, and Dependabot
+# (github-actions, monthly, 7-day cooldown) bumps both. Kept identical to release.yml's pins.
 
 permissions:
   contents: read
@@ -23,9 +24,9 @@ jobs:
       matrix:
         node: [22, 24]
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -36,9 +37,13 @@ jobs:
       - run: pnpm run test
       - run: pnpm run build
       - run: pnpm run smoke
-      # Unit tests for the release gate itself (scripts/*.test.mjs). The root `test` script is
+      # Unit tests for the release gate itself (tests/scripts/*.test.mjs). The root `test` script is
       # `turbo run test --filter=./packages/*`, so nothing under scripts/ is covered by it.
       - run: pnpm run test:release
+        env:
+          # Private leak-scan needles for tests/scripts/public-pointers.test.mjs. Unset on a fork's PR, where the
+          # public needles still run; the release job refuses to run without them.
+          LEAK_SCAN_EXTRA: ${{ secrets.LEAK_SCAN_EXTRA }}
       # The release setup is config that lives OUTSIDE this repo's diff — the `release` GitHub environment
       # and its required reviewer. Nothing in a PR shows when they disappear, and the cost of noticing at
       # release time is an unapproved publish to npm, which cannot be taken back. Checking it here means
@@ -48,15 +53,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Tier 2 — real-Docker integration tests. Separate job: Linux runners ship Docker, so the
+  # Real-Docker integration tests. Separate job: Linux runners ship Docker, so the
   # Docker-backed adapter tests run here (the `check` job stays Docker-free and fast).
   # GitHub sets CI=true, which un-skips the integration suites (see the packages' integration configs).
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: pnpm

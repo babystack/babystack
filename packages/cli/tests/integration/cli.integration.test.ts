@@ -8,7 +8,7 @@ import { run } from '../../src/index'
 
 // The 0.7 proof: the `baby` command flow across SEPARATE invocations against a real MySQL. The container
 // `wake` starts is detached, so a later `home`/`sleep` (a fresh call) rediscovers it by label. Excluded
-// from the default `test`; run via `test:integration` (CI Tier-2, or `BABYSTACK_DOCKER_IT=1` locally).
+// from the default `test`; run via `test:integration` (the CI `integration` job, or `BABYSTACK_DOCKER_IT=1` locally).
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fixtureDir = resolve(here, 'fixture')

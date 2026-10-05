@@ -23,7 +23,7 @@ CI runs the same sequence on every push and PR; nothing merges red.
 ```bash
 corepack enable
 pnpm install
-pnpm run check          # lint → format:check → typecheck → test → build
+pnpm run check          # lint → format:check → typecheck → test → test:release → build → smoke → check:release
 ```
 
 Integration tests need a running Docker engine:

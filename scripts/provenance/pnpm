@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# The release job puts this directory first on PATH, so every `pnpm` call made by `pnpm run release` lands
+# here — including the ones turbo makes, with an environment it has filtered. Each command passes through to
+# the real pnpm unchanged, except a publish, which gets `--provenance`. pnpm 12 asks for provenance only
+# through that flag; left to decide for itself, it publishes a tarball unsigned when its provenance lookup
+# fails. With the flag, a failed attestation fails the publish.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# The real pnpm is the next one on PATH after this directory. Found from PATH rather than from a variable,
+# because a task runner may pass PATH through and drop everything else.
+real=""
+IFS=: read -r -a dirs <<< "${PATH}"
+for d in "${dirs[@]}"; do
+  [ -n "$d" ] || continue
+  [ "$(cd "$d" 2>/dev/null && pwd)" = "$here" ] && continue
+  if [ -x "$d/pnpm" ]; then real="$d/pnpm"; break; fi
+done
+if [ -z "$real" ]; then
+  echo "provenance shim: no pnpm on PATH besides this shim" >&2
+  exit 127
+fi
+
+# The command is the first argument that is not an option (or the value of one that takes a value), so
+# `pnpm -r publish` and `pnpm --filter x publish` count as publishes too.
+command=""
+skip=0
+for arg in "$@"; do
+  if [ "$skip" = 1 ]; then skip=0; continue; fi
+  case "$arg" in
+    --filter | -F | --dir | -C | --workspace-dir) skip=1 ;;
+    -*) ;;
+    *) command="$arg"; break ;;
+  esac
+done
+if [ "$command" = publish ]; then
+  for arg in "$@"; do
+    if [ "$arg" = --provenance ]; then exec "$real" "$@"; fi
+  done
+  exec "$real" "$@" --provenance
+fi
+exec "$real" "$@"
