@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { DockerBackend, NodeCommandRunner, SystemClock } from '../../src/index'
 
 // Real Docker. Excluded from the default `test` run (vitest.config `exclude`); run via `test:integration`
-// with a reachable Docker engine (locally, or the CI Tier-2 job). Uses a small always-running image
+// with a reachable Docker engine (locally, or the CI `integration` job). Uses a small always-running image
 // (redis:7-alpine) so it exercises provision → waitReady → exec → dispose → gc without a 500MB mysql pull.
 
 const backend = new DockerBackend({ runner: new NodeCommandRunner(), clock: new SystemClock() })

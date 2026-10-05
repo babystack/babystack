@@ -53,7 +53,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Tier 2 — real-Docker integration tests. Separate job: Linux runners ship Docker, so the
+  # Real-Docker integration tests. Separate job: Linux runners ship Docker, so the
   # Docker-backed adapter tests run here (the `check` job stays Docker-free and fast).
   # GitHub sets CI=true, which un-skips the integration suites (see the packages' integration configs).
   integration:
