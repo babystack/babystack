@@ -44,7 +44,8 @@ export const NEEDLES = [
   { name: 'absolute home path', re: /\/(?:Users|home)\/[a-z][a-z0-9._-]*\//i },
   // A public artifact must carry no pointer the public cannot follow — not a private repo link, and not a
   // bare internal citation either, which implies checkable evidence and then withholds it.
-  { name: 'private/internal repo reference', re: /\b[\w.-]+-internal\b|\bdocs\/internal\//i },
+  // `\w-internal` rather than `[\w.-]+-internal`: the same hits, in linear time on a long unbroken run.
+  { name: 'private/internal repo reference', re: /\w-internal\b|\bdocs\/internal\//i },
   // A numbered planning doc, with or without its extension: `42-EXAMPLE.md`, and `see 42-EXAMPLE`.
   { name: 'internal numbered doc', re: /\b\d{2}-[A-Z]{3,}[A-Z0-9-]*(?:\.md)?\b/ },
   {

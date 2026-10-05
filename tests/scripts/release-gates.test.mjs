@@ -186,6 +186,14 @@ describe('verify-tarballs — what must never reach the registry', () => {
   })
 })
 
+test('every needle stays linear on a long unbroken run (a minified bundle or an embedded token)', () => {
+  // One needle once took 50 s on 300 KB of `ab-c.d_` repeated, which would hold an approved release job.
+  const run = 'ab-c.d_'.repeat(43000)
+  const started = Date.now()
+  scan(run)
+  assert.ok(Date.now() - started < 2000, `scan took ${Date.now() - started} ms`)
+})
+
 describe('verify-tarballs — private needles come from outside the repository', () => {
   // The real ones (an employer's name, private repository names) live in a gitignored file or a CI secret:
   // committing them here would publish what they guard. These tests use made-up values.

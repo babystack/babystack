@@ -308,7 +308,6 @@ describe('release workflow — release-toolchain rules', () => {
       shim < indexOfId('publish', 'changesets'),
       'the provenance step must run before publishing',
     )
-    assert.match(steps[shim].run, /REAL_PNPM=\$\(command -v pnpm\)/)
     assert.match(steps[shim].run, /scripts\/provenance.*GITHUB_PATH/)
   })
 

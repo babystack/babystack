@@ -42,6 +42,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { parse as parseYaml } from 'yaml'
 
 export const ENVIRONMENT = 'release'
 
@@ -202,19 +203,25 @@ export function readChangesets(root) {
 }
 
 /**
- * The package names a changeset bumps, read from its frontmatter: one `name: major|minor|patch|none` line
- * each, the name optionally quoted. `null` when the frontmatter is missing or holds anything else.
+ * The package names a changeset bumps — read exactly the way @changesets/parse 1.0 reads them (the same
+ * frontmatter pattern, the same YAML library, the same checks), so this accepts and rejects what
+ * `changeset version` will. `null` when Changesets itself would refuse the file.
  */
 export function changesetPackages(text) {
-  const block = /^---\r?\n([\s\S]*?)\r?\n?---/.exec(text)
-  if (!block) return null
-  const names = []
-  for (const line of block[1].split(/\r?\n/)) {
-    if (line.trim() === '') continue
-    const hit = /^\s*(['"]?)([^'":\s][^'":]*?)\1\s*:\s*(major|minor|patch|none)\s*$/.exec(line)
-    if (!hit) return null
-    names.push(hit[2])
+  if (text.trim() === '') return null
+  const front = /\s*---([^]*?)\r?\n\s*---(\s*(?:\n|$)[^]*)/.exec(text)
+  if (!front) return null
+  let releases
+  try {
+    releases = parseYaml(front[1])
+  } catch {
+    return null
   }
+  if (releases === null || releases === undefined) return []
+  if (typeof releases !== 'object' || Array.isArray(releases)) return null
+  const names = Object.keys(releases)
+  const valid = ['major', 'minor', 'patch', 'none']
+  if (names.some((n) => n.trim() === '' || !valid.includes(releases[n]))) return null
   return names
 }
 

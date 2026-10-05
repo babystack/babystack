@@ -306,6 +306,21 @@ describe('pending changesets — every name must be able to publish', () => {
     assert.equal(changesetPackages('---\npkg-a: huge\n---\n'), null)
   })
 
+  test('accepts and rejects exactly what Changesets itself does', () => {
+    // Accepted by @changesets/parse 1.0: a quoted value, a trailing comment, a leading blank line, flow style.
+    for (const [text, names] of [
+      ['---\n"@x/y": "minor"\n---\n\nx\n', ['@x/y']],
+      ["---\n'@x/y': patch # why\n---\n\nx\n", ['@x/y']],
+      ["\n---\n'@x/y': patch\n---\n\nx\n", ['@x/y']],
+      ["---\n{ '@x/y': patch, pkg-a: none }\n---\n\nx\n", ['@x/y', 'pkg-a']],
+    ]) {
+      assert.deepEqual(changesetPackages(text), names, text)
+    }
+    // Rejected by it: an unquoted scoped name (`@` cannot start a plain YAML key), and a duplicate key.
+    assert.equal(changesetPackages('---\n@x/y: minor\n---\n\nx\n'), null)
+    assert.equal(changesetPackages("---\n'@x/y': patch\n'@x/y': minor\n---\n\nx\n"), null)
+  })
+
   test('passes changesets that name only publishable packages', () => {
     assert.deepEqual(
       checkChangesets([cs('ok.md', "'@scope/b': patch\npkg-a: minor\n")], manifests),

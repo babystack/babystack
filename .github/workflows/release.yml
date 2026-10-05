@@ -373,11 +373,10 @@ jobs:
       # that npm read is ignored). Left to decide for itself, pnpm attaches provenance when publishing through
       # Trusted Publishing, but if that lookup fails it only warns and publishes the tarball unsigned, which
       # can never be undone. This puts scripts/provenance/ first on PATH: its `pnpm` passes every command
-      # through to the real pnpm and adds `--provenance` to `pnpm publish`, so a failed attestation stops the
+      # (including the ones turbo makes) through to the next pnpm on PATH and adds `--provenance` to `pnpm publish`, so a failed attestation stops the
       # publish instead.
       - name: Require provenance on every publish
         run: |
-          echo "REAL_PNPM=$(command -v pnpm)" >> "$GITHUB_ENV"
           echo "$GITHUB_WORKSPACE/scripts/provenance" >> "$GITHUB_PATH"
 
       # `pnpm run release` = turbo build + `changeset publish`, which runs `pnpm publish` for each package that

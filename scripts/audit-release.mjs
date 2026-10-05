@@ -127,31 +127,34 @@ function main(argv) {
     return 1
   }
 
-  let raw
-  try {
-    raw = execFileSync('pnpm', ['audit', '--prod', '--json'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
-  } catch (err) {
-    // `pnpm audit` exits non-zero WHEN IT FINDS SOMETHING, so a non-zero exit is not an error — but an
-    // empty stdout is: it means the audit did not run, and "could not check" must never read as "clean".
-    raw = err.stdout ?? ''
-    if (raw.trim() === '') {
-      console.error(
-        `audit-release: could not run pnpm audit — refusing to publish unaudited. ${err.message}`,
-      )
-      return 1
+  // `pnpm audit` exits non-zero WHEN IT FINDS SOMETHING, so a non-zero exit is not an error — but empty or
+  // unparseable output is: the audit did not run, and "could not check" must never read as "clean". That
+  // can be a passing registry hiccup, so try three times before refusing; a refusal here costs a re-approval.
+  let report
+  let lastError
+  for (let attempt = 1; attempt <= 3 && report === undefined; attempt++) {
+    let raw
+    try {
+      raw = execFileSync('pnpm', ['audit', '--prod', '--json'], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        maxBuffer: 64 * 1024 * 1024,
+      })
+    } catch (err) {
+      raw = err.stdout ?? ''
+      lastError = err
+    }
+    try {
+      if (raw.trim() === '') throw new Error('pnpm audit printed nothing')
+      report = JSON.parse(raw)
+    } catch (err) {
+      lastError = err
+      if (attempt < 3) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000 * attempt)
     }
   }
-
-  let report
-  try {
-    report = JSON.parse(raw)
-  } catch (err) {
+  if (report === undefined) {
     console.error(
-      `audit-release: could not parse the audit report — refusing to publish unaudited. ${err.message}`,
+      `audit-release: no usable audit report after 3 attempts — refusing to publish unaudited. ${lastError?.message ?? ''}`,
     )
     return 1
   }
