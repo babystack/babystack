@@ -21,6 +21,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const DEFINE_THE_NEEDLES = new Set([
   'scripts/verify-tarballs.mjs',
   'tests/scripts/release-gates.test.mjs',
+  'tests/scripts/fixtures/known-pointers.json', // quotes the known lines verbatim, so it matches them too
 ])
 // Generated, and every name in it is a public package; its integrity hashes are random base64.
 const GENERATED = new Set(['pnpm-lock.yaml'])
