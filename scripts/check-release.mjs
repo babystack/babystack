@@ -142,11 +142,15 @@ export function evaluateEnvironment({ status, body, slug, repoExists }) {
   }
   // RELEASING.md claims deployments are restricted to protected branches. An unverified claim in a
   // hardening doc is the same defect class as the missing environment itself, so check it too.
-  if (!rules.some((r) => r.type === 'branch_policy')) {
+  if (
+    !rules.some((r) => r.type === 'branch_policy') ||
+    body?.deployment_branch_policy?.protected_branches !== true
+  ) {
     problems.push(
-      `${slug}'s \`${ENVIRONMENT}\` environment has no deployment branch policy, so a release could be ` +
-        'approved from any branch — including one opened by a fork. RELEASING.md states deployments are ' +
-        'restricted to protected branches; make that true under Settings → Environments → release.',
+      `${slug}'s \`${ENVIRONMENT}\` environment does not restrict deployments to protected branches, so a ` +
+        'release could be approved from another branch — including one opened by a fork. RELEASING.md states ' +
+        'deployments are restricted to protected branches; make that true under Settings → Environments → ' +
+        'release → Deployment branches → Protected branches only.',
     )
   }
   return problems
@@ -309,7 +313,10 @@ async function main(argv, root) {
 
   const manifestPaths = [
     'package.json',
-    ...readdirSync(join(root, 'packages'), { withFileTypes: true })
+    ...(existsSync(join(root, 'packages'))
+      ? readdirSync(join(root, 'packages'), { withFileTypes: true })
+      : []
+    )
       .filter((e) => e.isDirectory())
       .map((e) => `packages/${e.name}/package.json`),
   ]
@@ -372,7 +379,9 @@ async function main(argv, root) {
         // A 404 has two causes needing different fixes — missing environment, or a wrong slug. Both fail
         // closed, but sending someone to configure a setting on a page that isn't there wastes the signal.
         try {
-          repoExists = (await probe(`https://api.github.com/repos/${slug}`)).ok
+          // Only a definite answer counts: a 5xx here says nothing about whether the repository exists.
+          const repo = await probe(`https://api.github.com/repos/${slug}`)
+          repoExists = repo.status === 200 ? true : repo.status === 404 ? false : undefined
         } catch {
           /* leave unknown; the message degrades to the ambiguous form */
         }

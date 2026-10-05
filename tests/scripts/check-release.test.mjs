@@ -124,6 +124,7 @@ describe('evaluateEnvironment — fails closed', () => {
         { type: 'required_reviewers', reviewers: [{ reviewer: { login: 'someone' } }] },
         { type: 'branch_policy' },
       ],
+      deployment_branch_policy: { protected_branches: true, custom_branch_policies: false },
     },
   }
 
@@ -160,7 +161,21 @@ describe('evaluateEnvironment — fails closed', () => {
     const body = {
       protection_rules: [{ type: 'required_reviewers', reviewers: [{ reviewer: { login: 'x' } }] }],
     }
-    assert.match(evaluateEnvironment({ ...ok, body })[0], /no deployment branch policy/)
+    assert.match(
+      evaluateEnvironment({ ...ok, body })[0],
+      /does not restrict deployments to protected/,
+    )
+  })
+
+  test('refuses a branch policy that allows more than protected branches', () => {
+    const body = {
+      ...ok.body,
+      deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
+    }
+    assert.match(
+      evaluateEnvironment({ ...ok, body })[0],
+      /does not restrict deployments to protected/,
+    )
   })
 
   test('refuses a 5xx, a rate limit and a malformed body rather than guessing', () => {
