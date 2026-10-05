@@ -1,0 +1,80 @@
+{
+  "advisories": {
+    "1120680": {
+      "findings": [
+        {
+          "version": "0.27.7",
+          "paths": [
+            ".>tsup>bundle-require>esbuild",
+            ".>tsup>esbuild",
+            ".>vitest>vite>esbuild",
+            ".>vitest>@vitest/mocker>vite>esbuild",
+            ".>@vitest/coverage-v8>vitest>vite>esbuild",
+            ".>@vitest/coverage-v8>vitest>@vitest/mocker>vite>esbuild",
+            ".>vite>esbuild",
+            "packages__vitest>vitest>vite>esbuild",
+            "packages__vitest>vitest>@vitest/mocker>vite>esbuild",
+            "packages__vitest>tsup>bundle-require>esbuild",
+            "packages__vitest>tsup>esbuild",
+            "packages__vitest>vite>esbuild",
+            "packages__docker>vitest>vite>esbuild",
+            "packages__docker>vitest>@vitest/mocker>vite>esbuild",
+            "packages__docker>tsup>bundle-require>esbuild",
+            "packages__docker>tsup>esbuild",
+            "packages__docker>vite>esbuild",
+            "packages__runtime>vitest>vite>esbuild",
+            "packages__runtime>vitest>@vitest/mocker>vite>esbuild",
+            "packages__runtime>vite>esbuild",
+            "packages__runtime>tsup>bundle-require>esbuild",
+            "packages__runtime>tsup>esbuild",
+            "packages__core>vite>esbuild",
+            "packages__core>tsup>bundle-require>esbuild",
+            "packages__core>tsup>esbuild",
+            "packages__core>vitest>vite>esbuild",
+            "packages__core>vitest>@vitest/mocker>vite>esbuild",
+            "packages__babystack>vitest>@vitest/coverage-v8>vitest>vite>esbuild",
+            "packages__babystack>vitest>@vitest/coverage-v8>vitest>@vitest/mocker>vite>esbuild",
+            "packages__babystack>tsup>bundle-require>esbuild",
+            "packages__babystack>tsup>esbuild",
+            "examples__users-api>vitest>@vitest/coverage-v8>vitest>vite>esbuild",
+            "examples__users-api>vitest>@vitest/coverage-v8>vitest>@vitest/mocker>vite>esbuild",
+            "packages__mysql>tsup>bundle-require>esbuild",
+            "packages__mysql>tsup>esbuild",
+            "packages__mysql>vite>esbuild",
+            "packages__mysql>vitest>vite>esbuild",
+            "packages__mysql>vitest>@vitest/mocker>vite>esbuild",
+            "packages__cli>vitest>@vitest/coverage-v8>vitest>vite>esbuild",
+            "packages__cli>vitest>@vitest/coverage-v8>vitest>@vitest/mocker>vite>esbuild",
+            "packages__cli>tsup>bundle-require>esbuild",
+            "packages__cli>tsup>esbuild"
+          ],
+          "dev": true,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1120680,
+      "title": "esbuild allows arbitrary file read when running the development server on Windows",
+      "module_name": "esbuild",
+      "vulnerable_versions": ">=0.27.3 <0.28.1",
+      "patched_versions": ">=0.28.1",
+      "severity": "low",
+      "cwe": "CWE-22",
+      "github_advisory_id": "GHSA-g7r4-m6w7-qqqr",
+      "url": "https://github.com/advisories/GHSA-g7r4-m6w7-qqqr"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "dependencies": 83,
+    "devDependencies": 407,
+    "optionalDependencies": 145,
+    "totalDependencies": 504
+  }
+}

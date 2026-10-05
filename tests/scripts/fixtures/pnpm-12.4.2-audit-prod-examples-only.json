@@ -1,0 +1,97 @@
+{
+  "advisories": {
+    "1116251": {
+      "findings": [
+        {
+          "version": "0.36.4",
+          "paths": ["examples__users-api>drizzle-orm"],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1116251,
+      "title": "Drizzle ORM has SQL injection via improperly escaped SQL identifiers",
+      "module_name": "drizzle-orm",
+      "vulnerable_versions": "<0.45.2",
+      "patched_versions": ">=0.45.2",
+      "severity": "high",
+      "cwe": "CWE-89",
+      "github_advisory_id": "GHSA-gpj5-g38j-94v9",
+      "url": "https://github.com/advisories/GHSA-gpj5-g38j-94v9"
+    },
+    "1158506": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": ["examples__users-api>express>qs", "examples__users-api>express>body-parser>qs"],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158506,
+      "title": "qs array-limit bypass via bracket-key comma parsing",
+      "module_name": "qs",
+      "vulnerable_versions": ">=6.14.2 <=6.15.3",
+      "patched_versions": ">=6.16.0",
+      "severity": "moderate",
+      "cwe": "CWE-770",
+      "github_advisory_id": "GHSA-x5fp-wj9c-mxmx",
+      "url": "https://github.com/advisories/GHSA-x5fp-wj9c-mxmx"
+    },
+    "1158507": {
+      "findings": [
+        {
+          "version": "6.15.3",
+          "paths": ["examples__users-api>express>qs", "examples__users-api>express>body-parser>qs"],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158507,
+      "title": "qs: Denial of Service via Attacker Controlled isBuffer",
+      "module_name": "qs",
+      "vulnerable_versions": ">=2.2.5 <6.16.0",
+      "patched_versions": ">=6.16.0",
+      "severity": "moderate",
+      "cwe": "CWE-248, CWE-703",
+      "github_advisory_id": "GHSA-4mjr-xmp4-gh2g",
+      "url": "https://github.com/advisories/GHSA-4mjr-xmp4-gh2g"
+    },
+    "1158532": {
+      "findings": [
+        {
+          "version": "3.23.0",
+          "paths": ["examples__users-api>mysql2", "examples__users-api>drizzle-orm>mysql2"],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1158532,
+      "title": "MySQL2: Unbounded zlib inflate in compressed MySQL protocol handler allows decompression-bomb DoS",
+      "module_name": "mysql2",
+      "vulnerable_versions": "<=3.23.0",
+      "patched_versions": ">=3.23.1",
+      "severity": "moderate",
+      "cwe": "CWE-409",
+      "github_advisory_id": "GHSA-rgwj-5xj2-c3m3",
+      "url": "https://github.com/advisories/GHSA-rgwj-5xj2-c3m3"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 3,
+      "high": 1,
+      "critical": 0
+    },
+    "dependencies": 82,
+    "devDependencies": 0,
+    "optionalDependencies": 14,
+    "totalDependencies": 96
+  }
+}
