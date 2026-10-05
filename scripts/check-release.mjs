@@ -85,7 +85,7 @@ export function comparePackages(listed, manifests) {
         '       If this package is NEW: its npm name almost certainly does not exist yet, and a Trusted ' +
         'Publisher cannot be bound to a name that has never been published. Publish the name once by hand, ' +
         'bind its Trusted Publisher on npmjs.com, and only then add it to the list — otherwise the release ' +
-        'publishes the rest of the family concurrently and fails on this one, leaving a partial, immutable ' +
+        'publishes every dependency level below this one and then fails on it, leaving a partial, immutable ' +
         'release.\n       If it should never publish, mark it `private: true`.',
     )
   }

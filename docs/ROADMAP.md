@@ -111,8 +111,9 @@ review thread so they survive it.
 - **Trusted Publisher bindings are unverified.** Every version on npm today was published by hand before
   the pipeline existed, so no binding has ever been exercised, and none of the packages carries a provenance
   attestation. Reading a binding needs an authenticated maintainer (`npm trust list <package>`), so no CI
-  gate can cover it. **Check all seven before the first pipeline release** — `changeset publish` uploads the
-  family concurrently, so a single missing binding leaves the others on the registry immutably.
+  gate can cover it. **Check all seven before the first pipeline release** — `changeset publish` goes level by
+  level and stops at the failing one, so a single missing binding still leaves every level below it on the
+  registry, immutably.
 - **"Require 2FA and disallow tokens" is documented as configured and is not machine-checkable** either.
   Same status, same one-time check.
 - **Staged publishing is not adopted.** The approval gate authorises a _run_, not an _artifact_ — a reviewer

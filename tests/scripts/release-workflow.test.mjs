@@ -19,7 +19,7 @@
  */
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -82,7 +82,8 @@ describe('release workflow — shape', () => {
   const PUBLISH_LINE =
     /^(npm|pnpm)\s+(-r\s+)?(--filter\s+\S+\s+)?publish\b|^changeset\s+publish\b|^pnpm\s+run\s+release\b/
   const publishesInStep = (s) =>
-    Boolean(s.with?.publish) || (s.run ?? '').split('\n').some((l) => PUBLISH_LINE.test(l.trim()))
+    Boolean(s.with?.['publish-script']) ||
+    (s.run ?? '').split('\n').some((l) => PUBLISH_LINE.test(l.trim()))
 
   test('nothing outside the publish job runs a publish', () => {
     const elsewhere = Object.entries(wf.jobs)
@@ -160,6 +161,76 @@ describe('release workflow — ORDER IS LOAD-BEARING', () => {
   })
 })
 
+describe('release workflow — changesets/action v2 contract', () => {
+  const changesetsSteps = () =>
+    Object.values(wf.jobs).flatMap((j) =>
+      j.steps.filter((s) => (s.uses ?? '').startsWith('changesets/action@')),
+    )
+  const publishStep = () => job('publish').steps.find((s) => s.id === 'changesets')
+
+  test('the action major matches the @changesets/cli major — the half-migration guard', () => {
+    // action v1 parses `New tag:` lines out of stdout; CLI 3 never prints them and reports through a
+    // CHANGESETS_OUTPUT file instead. Pairing action v1 with CLI 3 therefore publishes for real and then
+    // reports `published: false` with an empty package list — packages on npm, no tags, no Releases.
+    // Dependabot groups npm and actions updates SEPARATELY, so either half can arrive alone, and CI never
+    // runs release.yml. This test is the only thing that would notice.
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    const actionMajors = [...raw.matchAll(/changesets\/action@[0-9a-f]{40} # v(\d+)/g)].map((m) =>
+      Number(m[1]),
+    )
+    assert.ok(
+      actionMajors.length >= 2,
+      'expected both changesets/action steps to carry a # vN comment',
+    )
+    assert.equal(
+      new Set(actionMajors).size,
+      1,
+      'the two changesets/action steps are on different majors',
+    )
+    const ws = readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
+    const cli = /^\s+'@changesets\/cli':\s*[\^~]?(\d+)\./m.exec(ws)
+    assert.ok(cli, 'could not read the @changesets/cli catalog range')
+    assert.equal(
+      Number(cli[1]),
+      actionMajors[0] + 1,
+      `changesets/action v${actionMajors[0]} pairs with @changesets/cli ${actionMajors[0] + 1}.x, not ${cli[1]}.x`,
+    )
+  })
+
+  test('uses only v2 input names — v1 names make the action throw', () => {
+    for (const s of changesetsSteps()) {
+      for (const old of ['publish', 'version', 'createGithubReleases']) {
+        assert.equal(
+          s.with?.[old],
+          undefined,
+          `changesets/action step uses the removed v1 input "${old}"`,
+        )
+      }
+    }
+  })
+
+  test('the publish step turns off BOTH releases and tag pushing', () => {
+    // Since v2, `create-github-releases: false` no longer stops tag pushing. Without `push-git-tags: false`
+    // the action tries to push tags with an id-token-only token, gets a 403 per package, warns, and carries
+    // on — so the guarantee would rest on a missing scope rather than on configuration.
+    assert.equal(publishStep().with['create-github-releases'], false)
+    assert.equal(publishStep().with['push-git-tags'], false)
+  })
+
+  test('reads the RENAMED output — a stale name evaluates to an empty string', () => {
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    assert.doesNotMatch(raw, /steps\.changesets\.outputs\.publishedPackages/)
+    assert.match(
+      job('publish').outputs.publishedPackages,
+      /steps\.changesets\.outputs\.published-packages/,
+    )
+  })
+
+  test('passes no GITHUB_TOKEN env to the action — v2 throws if it disagrees with the input', () => {
+    for (const s of changesetsSteps()) assert.equal(s.env?.GITHUB_TOKEN, undefined)
+  })
+})
+
 describe('release workflow — release-toolchain rules', () => {
   test('npm is pinned to a FLOOR, never @latest', () => {
     const runs = job('publish').steps.map((s) => s.run ?? '')
@@ -169,10 +240,25 @@ describe('release workflow — release-toolchain rules', () => {
     assert.match(upgrade, /npm@\^\d+\.\d+\.\d+/)
   })
 
-  test('every action is pinned to a full commit SHA', () => {
-    const uses = Object.values(wf.jobs).flatMap((j) => j.steps.map((s) => s.uses).filter(Boolean))
-    assert.ok(uses.length > 0)
-    for (const u of uses) assert.match(u, /@[0-9a-f]{40}$/, `${u} is not pinned to a full SHA`)
+  test('every action in EVERY workflow is pinned to a full commit SHA', () => {
+    // Every workflow, not just this one. The first version of this test parsed only release.yml, and
+    // ci.yml sat on mutable `@v4` tags the whole time without it noticing — a tag can be moved to point at
+    // new code, and the job that runs on every pull request is exactly where that matters.
+    const dir = join(ROOT, '.github/workflows')
+    const files = readdirSync(dir).filter((f) => /\.ya?ml$/.test(f))
+    assert.ok(files.length > 1, 'sanity: more than one workflow exists')
+    const unpinned = []
+    for (const f of files) {
+      const w = parse(readFileSync(join(dir, f), 'utf8'))
+      for (const [name, j] of Object.entries(w.jobs ?? {})) {
+        for (const s of j.steps ?? []) {
+          if (s.uses && !s.uses.startsWith('./') && !/@[0-9a-f]{40}$/.test(s.uses)) {
+            unpinned.push(`${f} › ${name}: ${s.uses}`)
+          }
+        }
+      }
+    }
+    assert.deepEqual(unpinned, [])
   })
 
   test('PUBLISHED_PACKAGES is declared at the workflow level', () => {
