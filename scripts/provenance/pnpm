@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# The release job puts this directory first on PATH, so every `pnpm` call made by `pnpm run release` lands
+# here. Each command passes through to the real pnpm unchanged, except `pnpm publish`, which gets
+# `--provenance`. pnpm 12 asks for provenance only through that flag; left to decide for itself, it publishes
+# a tarball unsigned when its provenance lookup fails. With the flag, a failed attestation fails the publish.
+set -euo pipefail
+: "${REAL_PNPM:?REAL_PNPM must name the real pnpm binary}"
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "$(cd "$(dirname "$REAL_PNPM")" && pwd)" = "$here" ]; then
+  echo "provenance shim: REAL_PNPM points back at this shim" >&2
+  exit 2
+fi
+if [ "${1-}" = publish ]; then
+  for arg in "$@"; do
+    if [ "$arg" = --provenance ]; then exec "$REAL_PNPM" "$@"; fi
+  done
+  exec "$REAL_PNPM" "$@" --provenance
+fi
+exec "$REAL_PNPM" "$@"

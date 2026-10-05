@@ -44,10 +44,10 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
   the reason given under [Pre-flight guards](#pre-flight-guards), and it **fails closed**: a registry
   timeout or 5xx aborts the run rather than being read as "not published".
 - **`publish`** (gated by the **`release` environment** → your manual approval) — runs **only when a publish
-  is due**. It upgrades npm to ≥ 11.5.1, builds, and runs `pnpm run release` (`turbo run build &&
-changeset publish`), which uploads each not-yet-published package. Authentication is the GitHub **OIDC**
-  token (there is **no `NPM_TOKEN`**), and `NPM_CONFIG_PROVENANCE=true` attaches a signed provenance
-  attestation. Before it publishes, it **re-runs the fast checks** — lint, arch, format, typecheck, test,
+  is due**. It builds and runs `pnpm run release` (`turbo run build && changeset publish`), which
+  runs `pnpm publish` for each not-yet-published package. Authentication is the GitHub **OIDC** token (there
+  is **no `NPM_TOKEN`**), and every `pnpm publish` is given `--provenance`, so each package carries a signed
+  provenance attestation or the publish fails. Before it publishes, it **re-runs the fast checks** — lint, arch, format, typecheck, test,
   build, smoke — against the exact commit being released, then runs the
   [pre-flight guards](#pre-flight-guards). Afterwards it **verifies from the registry
   API** that every expected package really resolves at the new version _and_ carries a provenance
@@ -184,7 +184,7 @@ The order is fixed:
 2. **Publish the name once by hand**, with interactive 2FA, at a prerelease version:
    ```bash
    cd packages/<new>
-   npm publish --access public --tag rc      # requires npm >= 11.5.1 and your interactive 2FA
+   pnpm publish --access public --tag rc   # pnpm, not npm: it rewrites workspace:^ ranges; npm ships them raw
    ```
 3. **Bind its Trusted Publisher** on npmjs.com → the package → Settings → Trusted Publisher: GitHub Actions,
    repo `babystack/babystack`, workflow `release.yml`, environment `release`. Set publishing access to
@@ -242,8 +242,9 @@ present (this is what provenance looks like from outside), and the GitHub Releas
 
 ## Manual / break-glass release
 
-Only if the pipeline is down and a release cannot wait. Requires npm ≥ 11.5.1 and your **interactive npm
-2FA** (automation tokens are disallowed by design):
+Only if the pipeline is down and a release cannot wait. Requires your **interactive npm 2FA** (automation
+tokens are disallowed by design), and the result carries **no provenance**: only the pipeline's OIDC identity
+can attest to where a package was built.
 
 ```bash
 pnpm install --frozen-lockfile   # never a loose install on the one release nobody is reviewing carefully

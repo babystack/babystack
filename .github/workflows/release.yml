@@ -192,13 +192,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
 
-      # Trusted Publishing (OIDC) requires npm >= 11.5.1; the runner's bundled npm is older. A FLOOR, not
-      # `@latest`: `@latest` makes every release depend on whatever npm shipped that morning, so a
-      # regression in a brand-new npm becomes a broken release with nothing in our diff to point at — and
-      # npm 12 now exists, so `@latest` can cross a major boundary mid-release.
-      - name: Upgrade npm for Trusted Publishing
-        run: npm install -g 'npm@^11.5.1'
-
       # Re-run the fast checks against the exact commit being published. Not belt-and-braces: the Version
       # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub does not start workflow
       # runs for events raised by that token — so `ci.yml` does NOT run automatically on the Version PR, and
@@ -370,8 +363,20 @@ jobs:
         env:
           LEAK_SCAN_EXTRA: ${{ secrets.LEAK_SCAN_EXTRA }}
 
-      # `pnpm run release` = turbo build + `changeset publish`. npm authenticates via the OIDC token (no
-      # NPM_TOKEN) and NPM_CONFIG_PROVENANCE=true attaches a signed provenance attestation.
+      # Provenance is REQUIRED, not hoped for. `changeset publish` runs `pnpm publish` with no way to pass it a
+      # flag, and pnpm 12 asks for provenance only through `--provenance` (the NPM_CONFIG_PROVENANCE variable
+      # that npm read is ignored). Left to decide for itself, pnpm attaches provenance when publishing through
+      # Trusted Publishing, but if that lookup fails it only warns and publishes the tarball unsigned, which
+      # can never be undone. This puts scripts/provenance/ first on PATH: its `pnpm` passes every command
+      # through to the real pnpm and adds `--provenance` to `pnpm publish`, so a failed attestation stops the
+      # publish instead.
+      - name: Require provenance on every publish
+        run: |
+          echo "REAL_PNPM=$(command -v pnpm)" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/scripts/provenance" >> "$GITHUB_PATH"
+
+      # `pnpm run release` = turbo build + `changeset publish`, which runs `pnpm publish` for each package that
+      # is due. pnpm authenticates from this workflow's OIDC identity (Trusted Publishing; no NPM_TOKEN exists).
       #
       # BOTH `create-github-releases: false` AND `push-git-tags: false` move tagging and Release creation to
       # the downstream job — the thing that lets this job drop `contents: write`. In v1 the first flag also
@@ -385,11 +390,8 @@ jobs:
           publish-script: pnpm run release
           create-github-releases: false
           push-git-tags: false
-        env:
-          # No NODE_AUTH_TOKEN, and no GITHUB_TOKEN (see the prepare step: v2 throws if one disagrees with
-          # its `github-token` input). npm authenticates from this workflow's OIDC identity — Trusted
-          # Publishing, which pnpm 11+ performs natively in the `pnpm publish` that `changeset publish` runs.
-          NPM_CONFIG_PROVENANCE: true
+        # No `env:` at all: no NODE_AUTH_TOKEN (Trusted Publishing needs none), and no GITHUB_TOKEN (see the
+        # prepare step: v2 throws if one disagrees with its `github-token` input).
 
       # A green publish step is not proof that anything published. Verify against the registry itself —
       # including that the set matches what pre-flight said, and that provenance is actually attached.

@@ -232,12 +232,27 @@ describe('release workflow — changesets/action v2 contract', () => {
 })
 
 describe('release workflow — release-toolchain rules', () => {
-  test('npm is pinned to a FLOOR, never @latest', () => {
-    const runs = job('publish').steps.map((s) => s.run ?? '')
-    const upgrade = runs.find((r) => /npm install -g/.test(r))
-    assert.ok(upgrade, 'the publish job does not upgrade npm')
-    assert.doesNotMatch(upgrade, /npm@latest/)
-    assert.match(upgrade, /npm@\^\d+\.\d+\.\d+/)
+  test('the publish job installs no npm of its own: pnpm 12 publishes without it', () => {
+    // An `npm install -g` here would pull a registry package, younger than the 7-day cooldown, into the one
+    // job holding the OIDC token, for a tool the publish never calls.
+    for (const s of job('publish').steps) assert.doesNotMatch(s.run ?? '', /\bnpm (install|i) -g\b/)
+  })
+
+  test('provenance is required: the shim goes on PATH before the publish step', () => {
+    const steps = job('publish').steps
+    const shim = steps.findIndex((s) => s.name === 'Require provenance on every publish')
+    assert.ok(shim >= 0, 'the provenance step is missing')
+    assert.ok(
+      shim < indexOfId('publish', 'changesets'),
+      'the provenance step must run before publishing',
+    )
+    assert.match(steps[shim].run, /REAL_PNPM=\$\(command -v pnpm\)/)
+    assert.match(steps[shim].run, /scripts\/provenance.*GITHUB_PATH/)
+  })
+
+  test('nothing relies on NPM_CONFIG_PROVENANCE: pnpm 12 ignores it', () => {
+    const raw = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8')
+    assert.doesNotMatch(raw, /^\s*NPM_CONFIG_PROVENANCE:/m)
   })
 
   test('every action in EVERY workflow is pinned to a full commit SHA', () => {
