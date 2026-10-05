@@ -63,8 +63,8 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@babystack/cli": "workspace:*",
-    "@babystack/core": "workspace:*"
+    "@babystack/cli": "workspace:^",
+    "@babystack/core": "workspace:^"
   },
   "devDependencies": {
     "tsup": "catalog:",

@@ -49,11 +49,11 @@
     "vitest": ">=2"
   },
   "dependencies": {
-    "@babystack/core": "workspace:*",
-    "@babystack/runtime": "workspace:*"
+    "@babystack/core": "workspace:^",
+    "@babystack/runtime": "workspace:^"
   },
   "devDependencies": {
-    "@babystack/docker": "workspace:*",
+    "@babystack/docker": "workspace:^",
     "@types/node": "catalog:",
     "mysql2": "^3.11.0",
     "tsup": "catalog:",

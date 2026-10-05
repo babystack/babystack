@@ -16,6 +16,8 @@ coverage/
 # env — commit .env.example, never real env
 .env
 .env.*
+# Private leak-scan needles (employer and private-repository names): committing them would publish them.
+.leak-needles
 !.env.example
 
 # turbo

@@ -1,7 +1,7 @@
 # Contributing to babystack
 
-Thanks for helping! babystack is an open-core, Apache-2.0 project. This repo follows a consistent
-engineering handbook shared across the maintainer's projects; the essential rules are inlined below.
+Thanks for helping! babystack is an open-core, Apache-2.0 project. Everything a contribution needs
+to follow is written out below.
 
 ## Table of contents
 

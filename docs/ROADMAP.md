@@ -12,6 +12,7 @@ promise — see the note at the bottom.
 - [Shipped today](#shipped-today)
 - [Engines: MySQL only, for now](#engines-mysql-only-for-now)
 - [Planned / exploring](#planned--exploring)
+- [Release hardening — owed work](#release-hardening--owed-work)
 - [A note on priorities](#a-note-on-priorities)
 
 ## Shipped today
@@ -99,6 +100,31 @@ matters to you, [open an issue](https://github.com/babystack/babystack/issues) a
   (Claude Code, Cursor) through MCP, alongside the `baby` CLI that already serves it.
 - **`baby init`** — auto-detect your migrate/seed commands and scaffold `babystack.config.ts` (today you
   hand-write it).
+
+## Release hardening — owed work
+
+The release pipeline is tokenless, provenance-signed and gated on a required reviewer, with pre-flight
+guards, a packed-artifact leak scan and a release-time dependency audit (see
+[`RELEASING.md`](../RELEASING.md)). These are the parts that are **not** done, recorded here rather than in a
+review thread so they survive it.
+
+- **Trusted Publisher bindings are unverified.** Every version on npm today was published by hand before
+  the pipeline existed, so no binding has ever been exercised, and none of the packages carries a provenance
+  attestation. Reading a binding needs an authenticated maintainer (`npm trust list <package>`), so no CI
+  gate can cover it. **Check all seven before the first pipeline release** — `changeset publish` uploads the
+  family concurrently, so a single missing binding leaves the others on the registry immutably.
+- **"Require 2FA and disallow tokens" is documented as configured and is not machine-checkable** either.
+  Same status, same one-time check.
+- **Staged publishing is not adopted.** The approval gate authorises a _run_, not an _artifact_ — a reviewer
+  approves before the tarball exists, so the bytes that reach the registry are the one part of the release
+  nobody saw. npm's staged-publish flow would move the approval onto the packed tarball; Changesets has no
+  support for it today. Treated as owed work, not as done. The tarball leak scan narrows the gap but does
+  not close it: it proves the artifact is clean, not that a human looked at it.
+- **`ci.yml` still pins its actions to mutable tags.** `release.yml` is fully SHA-pinned;
+  [#9](https://github.com/babystack/babystack/pull/9) closes the gap for CI.
+- **No clean-room install of the published tarballs.** The smoke test loads the built packages by name from
+  the workspace, not from a packed tarball installed into an empty directory, so a broken `files` list or
+  `exports` map could still ship.
 
 ## A note on priorities
 
