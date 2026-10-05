@@ -134,7 +134,7 @@ describe('verify-tarballs — what must never reach the registry', () => {
   test('catches each needle class', () => {
     const cases = {
       'private key': ['-----BEGIN RSA PRIVATE KEY-----\nabc'],
-      'AWS access key id': ['AKIAIOSFODNN7EXAMPLE'],
+      'AWS access key id': ['AKIA1234567890ABCDEF'],
       'npm token': ['npm_abcdefghijklmnopqrstuvwxyz0123456789'],
       'GitHub token': ['ghp_abcdefghijklmnopqrstuvwxyz0123456789'],
       'absolute home path': ['at /Users/someone/projects/thing.ts:1'],
@@ -180,6 +180,7 @@ describe('verify-tarballs — what must never reach the registry', () => {
       'UTF-8 and x86-64 at 2026-09-22T10:00:00Z',
       'grid-template-columns: 1fr; gap: 8px',
       'finding the right driver',
+      'redactSecrets("AKIAIOSFODNN7EXAMPLE")', // AWS's documented example key
     ]
     for (const text of benign) assert.deepEqual(scan(text), [], `false positive on: ${text}`)
   })

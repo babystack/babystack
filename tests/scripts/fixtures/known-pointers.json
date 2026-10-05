@@ -1,0 +1,14 @@
+{
+  "why": "CLAUDE.md changes only with the maintainer's approval. These three lines cite a private handbook; they are listed here until that edit lands, and any new hit still fails.",
+  "lines": [
+    { "file": "CLAUDE.md", "text": "Build by these (full version + updates in the handbook):" },
+    {
+      "file": "CLAUDE.md",
+      "text": "**Project-specific (what differs from / adds to the handbook):**"
+    },
+    {
+      "file": "CLAUDE.md",
+      "text": "handbook lenses (correctness/logic end-to-end · bug-hunt · security · scale/perf ·"
+    }
+  ]
+}

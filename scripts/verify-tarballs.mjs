@@ -4,8 +4,8 @@
  * Verify the artifact you ship, not the source that produced it. Build output is left out of most
  * source-level checks — it is gitignored, so file- and history-based scanners never see it — yet it is almost
  * all of the published bytes. Sourcemaps make this sharper: `dist/*.js.map` embeds `sourcesContent`, the
- * complete original source of every file, comments included, so a secret scanner or a no-internal-references
- * rule that only ever reads `src/` is blind to the copy that actually ships.
+ * complete original source of every file, comments included, so a secret scanner or a rule against internal
+ * references that only ever reads `src/` is blind to the copy that actually ships.
  *
  * This packs each publishable package with `pnpm pack` — the packer `changeset publish` uses in a pnpm
  * workspace, so `workspace:` and `catalog:` ranges are rewritten exactly as they will be on the registry — and
@@ -37,7 +37,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
  */
 export const NEEDLES = [
   { name: 'private key', re: /-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/ },
-  { name: 'AWS access key id', re: /\bAKIA[0-9A-Z]{16}\b/ },
+  // AKIAIOSFODNN7EXAMPLE is the example key AWS's own documentation uses; it is never a credential.
+  { name: 'AWS access key id', re: /\bAKIA(?!IOSFODNN7EXAMPLE)[0-9A-Z]{16}\b/ },
   { name: 'npm token', re: /\bnpm_[A-Za-z0-9]{36}\b/ },
   { name: 'GitHub token', re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
   { name: 'absolute home path', re: /\/(?:Users|home)\/[a-z][a-z0-9._-]*\//i },
@@ -92,6 +93,18 @@ function needlesFile() {
   return existsSync(main) ? main : undefined
 }
 
+/**
+ * The private needles from `.leak-needles` and `LEAK_SCAN_EXTRA`, parsed. Throws on an invalid expression.
+ * Exported so the tracked-tree check (tests/scripts/public-pointers.test.mjs) scans with the same set.
+ */
+export function loadExtraNeedles() {
+  const file = needlesFile()
+  return parseExtraNeedles(
+    file ? readFileSync(file, 'utf8') : '',
+    process.env.LEAK_SCAN_EXTRA ?? '',
+  )
+}
+
 /** Names of the publishable packages, read the same way the release workflow reads them. */
 function publishablePackages() {
   const dir = join(ROOT, 'packages')
@@ -112,11 +125,7 @@ export function scan(text, extra = []) {
 function main(argv) {
   let extra
   try {
-    const file = needlesFile()
-    extra = parseExtraNeedles(
-      file ? readFileSync(file, 'utf8') : '',
-      process.env.LEAK_SCAN_EXTRA ?? '',
-    )
+    extra = loadExtraNeedles()
   } catch (err) {
     console.error(`verify-tarballs: ${err.message}`)
     return 1
