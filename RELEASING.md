@@ -53,12 +53,14 @@ No local publish commands. Adding the changeset (step 1) is the only thing you d
   API** that every expected package really resolves at the new version _and_ carries a provenance
   attestation — a green publish step is not proof that anything published.
 - **`github-release`** — pushes the git tags and cuts one GitHub Release per published package, with notes
-  from that package's `CHANGELOG.md`. It runs **only after `publish` succeeds**, so a Release object can
-  never describe a version that never reached npm.
+  from that package's `CHANGELOG.md`. It runs whenever `publish` published anything — including a run that
+  failed partway — and only for the packages that reached npm, so a Release never describes a version the
+  registry lacks. A prerelease version (`1.0.0-rc.1`) is marked as a prerelease, never as "Latest".
 
 The re-run is not belt-and-braces. The "Version Packages" PR is opened by `changesets/action` using
-`GITHUB_TOKEN`, and GitHub does not start workflow runs for events raised by that token — so `ci.yml` does
-**not** run automatically on the Version PR. Merging it (the routine thing to do with a bot PR that "just
+`GITHUB_TOKEN`, and GitHub holds CI on a PR opened that way until a maintainer approves the runs — so `ci.yml`
+does **not** run on the Version PR by itself. (Approve them from the PR's Checks tab; with required status
+checks on `main`, the PR cannot merge until you do.) Merging it (the routine thing to do with a bot PR that "just
 bumps versions") would otherwise publish a tree that was never gated on a PR at all.
 
 **Two things it does _not_ re-run, deliberately — know them before you approve.** The Docker-backed
@@ -212,8 +214,9 @@ unexercised publish script is its own hazard.
 
 The required reviewer approves a **run**, not an **artifact**. You click approve before the tarball exists,
 so the bytes that actually reach the registry are the one part of the release nobody has looked at. npm's
-staged-publish flow would move the approval onto the packed tarball; Changesets cannot drive it today, so
-this is **owed work, not done** — it is tracked in [the roadmap](docs/ROADMAP.md#release-hardening--owed-work).
+staged-publish flow would move the approval onto the packed tarball. Changesets 3 has the pieces — pack in an
+unprivileged job (`changeset pack --out-dir`), approve, then `changeset publish --from-pack-dir` — but this
+pipeline does not use them yet, so this is **owed work, not done** — it is tracked in [the roadmap](docs/ROADMAP.md#release-hardening--owed-work).
 
 Two things narrow the gap in the meantime, both running before the publish: `scripts/verify-tarballs.mjs`
 packs every publishable package and scans the tarball contents — including `dist/` and the sourcemaps'
@@ -273,7 +276,7 @@ Prefer the automated flow; this path exists so a broken pipeline never blocks a 
   _before_ adding it to `PUBLISHED_PACKAGES`.
 - **"X does not exist on the registry"** — same thing: the name was never published, so no Trusted Publisher
   can exist for it. Bootstrap it.
-- **"every publishable version is already on the registry"** — there is nothing to release. The Version
+- **"every expected version is already on the registry"** — there is nothing to release. The Version
   Packages PR hasn't been merged, or this is a re-run of a release that already completed.
 - **"could not reach the registry to check X"** — a 5xx, a rate limit or a timeout. The guards **fail
   closed** on purpose: a probe that could not answer is never read as "safe to publish". Re-run the job.

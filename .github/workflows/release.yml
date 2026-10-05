@@ -7,7 +7,8 @@ name: Release
 #   • publish        — behind the `release` Environment (manual approval). Re-runs the fast checks against
 #                      the exact commit being published, refuses on any pre-flight condition, publishes
 #                      tokenlessly with provenance, then verifies from the registry that it really landed.
-#   • github-release — tags and cuts the GitHub Releases. Runs only after `publish` succeeds.
+#   • github-release — tags and cuts the GitHub Releases for whatever `publish` actually published,
+#                      including after a run that failed partway.
 #
 # Prerequisites (one-time, outside this file — see RELEASING.md):
 #   1. npmjs.com → each published package → Trusted Publisher: GitHub Actions, repo babystack/babystack,
@@ -56,14 +57,17 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Cancellable, unlike `publish`: this job only refreshes a PR, and superseding it with a newer commit
-    # is correct. It must NOT share a group with `publish` — a release parked on the approval gate counts
+    # Not cancelled by a newer push: besides refreshing the Version PR, this job decides whether ITS commit
+    # is due a release. Cancelling it would drop that decision, and the newer commit may carry a changeset
+    # that makes it refuse — leaving a merged Version PR unpublished. GitHub still keeps only one PENDING run
+    # per group, so three pushes inside one run can replace the middle one; that window is a minute, not the
+    # whole run. It must NOT share a group with `publish` — a release parked on the approval gate counts
     # as in-progress for as long as the reviewer takes, and GitHub keeps only ONE pending run per group, so
     # a shared group would let each new push to main silently cancel the previously queued `prepare` and
     # leave the Version PR stale for the whole approval window.
     concurrency:
       group: release-prepare-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     permissions:
       contents: write # push the changeset-release branch
       pull-requests: write # open/update the Version Packages PR
@@ -177,7 +181,6 @@ jobs:
     outputs:
       published: ${{ steps.changesets.outputs.published }}
       publishedPackages: ${{ steps.changesets.outputs.published-packages }} # renamed from publishedPackages in v2
-      expected: ${{ steps.preflight.outputs.expected }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -193,10 +196,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # Re-run the fast checks against the exact commit being published. Not belt-and-braces: the Version
-      # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub does not start workflow
-      # runs for events raised by that token — so `ci.yml` does NOT run automatically on the Version PR, and
-      # merging it (the routine thing to do with a bot PR that "just bumps versions") publishes a tree that
-      # was never gated on a PR at all.
+      # Packages PR is opened by `changesets/action` using GITHUB_TOKEN, and GitHub holds CI on a PR opened
+      # that way until a maintainer approves the runs — so `ci.yml` does not run on the Version PR by itself,
+      # and merging it (the routine thing to do with a bot PR that "just bumps versions") could publish a
+      # tree no check ever ran on.
       #
       # Two things this deliberately does NOT repeat, so the claim stays honest: the Docker-backed
       # `integration` job (it needs services and minutes, in front of a human already waiting on an approval
@@ -479,7 +482,9 @@ jobs:
               fail=1
               continue
             fi
-            if ! gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag; then
+            prerelease=()
+            case "$version" in *-*) prerelease=(--prerelease) ;; esac # 1.0.0-rc.1 must not become "Latest"
+            if ! gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --verify-tag "${prerelease[@]}"; then
               echo "::error::could not create the GitHub Release for $tag"
               fail=1
               continue

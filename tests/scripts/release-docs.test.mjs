@@ -24,6 +24,7 @@ const FILES = [
   '.github/workflows/release.yml',
   '.github/workflows/ci.yml',
   'CONTRIBUTING.md',
+  'docs/ROADMAP.md',
 ].filter((f) => existsSync(join(ROOT, f)))
 
 const FORBIDDEN = [
@@ -74,6 +75,23 @@ const FORBIDDEN = [
     why:
       '`npm trust list <package>` reads the bindings for an authenticated maintainer. The claim is only ' +
       'true of an UNAUTHENTICATED caller, which is what stops a CI gate covering it — say that instead.',
+  },
+  // ── What pnpm 12 and @changesets/cli 3 made false. ─────────────────────────────────────────────────────
+  {
+    pattern: /NPM_CONFIG_PROVENANCE=?\w*\s+(attaches|adds|enables|turns on)/i,
+    why:
+      'pnpm 12 ignores NPM_CONFIG_PROVENANCE; provenance comes from the `--provenance` flag the publish step ' +
+      'adds to every `pnpm publish`.',
+  },
+  {
+    pattern: /\bnpm\s*(>=|≥)\s*11\.5\.1/,
+    why: 'The publish job no longer installs npm: pnpm 12 publishes, and authenticates through OIDC, itself.',
+  },
+  {
+    pattern: /simply vanishes/i,
+    why:
+      'A private package does not quietly vanish under @changesets/cli 3: a changeset naming it fails or is never ' +
+      'consumed, and check-release.mjs refuses it on every PR.',
   },
 ]
 

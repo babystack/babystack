@@ -44,3 +44,7 @@ minimumReleaseAge: 10080
 # loudly at the first esbuild call rather than a script quietly fetching one.
 allowBuilds:
   esbuild: false
+
+# `pnpm run` / `pnpm exec` must never install on their own: a manifest that drifted from the lockfile
+# fails loudly instead of being silently re-resolved (and the lockfile rewritten) inside a commit hook.
+verifyDepsBeforeRun: error

@@ -79,11 +79,42 @@ describe('release workflow — shape', () => {
   //   • the pre-flight echoes "changeset publish will skip it" as an explanatory log line.
   // So: the changesets action's `publish:` input, or a run LINE that begins with a publish command —
   // prose lives inside `echo`, which never starts a line with `npm`/`pnpm`/`changeset`.
-  const PUBLISH_LINE =
-    /^(npm|pnpm)\s+(-r\s+)?(--filter\s+\S+\s+)?publish\b|^changeset\s+publish\b|^pnpm\s+run\s+release\b/
+  const PUBLISH_LINE = new RegExp(
+    [
+      String.raw`^(npx\s+|pnpm\s+(exec\s+|dlx\s+)?)?changeset\s+publish\b`, // any route to changeset publish
+      String.raw`^(npm|pnpm)\s+((-r|-w|--recursive)\s+)*(--filter\s+\S+\s+)?publish\b`,
+      String.raw`^(npm|pnpm)\s+((-w|--workspace-root)\s+)?(run\s+)?release(?=\s|$)`, // the release script
+    ].join('|'),
+  )
   const publishesInStep = (s) =>
     Boolean(s.with?.['publish-script']) ||
     (s.run ?? '').split('\n').some((l) => PUBLISH_LINE.test(l.trim()))
+
+  test('the publish detector catches every route to a publish, and no prose', () => {
+    for (const line of [
+      'changeset publish',
+      'pnpm changeset publish',
+      'pnpm exec changeset publish',
+      'npx changeset publish',
+      'pnpm publish --filter onadiet',
+      'pnpm -r publish',
+      'npm publish --access public',
+      'pnpm release',
+      'pnpm run release',
+      'pnpm -w run release',
+      'npm run release',
+    ]) {
+      assert.match(line, PUBLISH_LINE, `missed: ${line}`)
+    }
+    for (const line of [
+      'echo "changeset publish will skip it"',
+      'echo "should_publish=true" >> "$GITHUB_OUTPUT"',
+      'pnpm run release-notes',
+      'node scripts/release-notes.mjs "$name" "$version"',
+    ]) {
+      assert.doesNotMatch(line, PUBLISH_LINE, `false positive: ${line}`)
+    }
+  })
 
   test('nothing outside the publish job runs a publish', () => {
     const elsewhere = Object.entries(wf.jobs)
@@ -100,9 +131,9 @@ describe('release workflow — shape', () => {
 
   test('a release is never cancelled in flight', () => {
     assert.equal(job('publish').concurrency['cancel-in-progress'], false)
-    // prepare only refreshes a PR, so superseding it is correct — and it must NOT share publish's group,
-    // or a release parked on the approval gate would let each new push cancel the queued prepare.
-    assert.equal(job('prepare').concurrency['cancel-in-progress'], true)
+    // prepare also decides whether its commit is due a release, so a newer push must not cancel it — and it
+    // must NOT share publish's group, or a release parked on the approval gate would hold every prepare.
+    assert.equal(job('prepare').concurrency['cancel-in-progress'], false)
     assert.notEqual(job('prepare').concurrency.group, job('publish').concurrency.group)
   })
 
@@ -128,8 +159,20 @@ describe('release workflow — ORDER IS LOAD-BEARING', () => {
   test('publish: everything fixable precedes the irreversible publish', () => {
     const publishStep = stepLabels('publish').findIndex((l) => /changesets\/action/.test(l))
     assert.ok(publishStep >= 0, 'publish does not run changesets/action')
+    for (const script of [
+      'lint',
+      'format:check',
+      'typecheck',
+      'test',
+      'test:release',
+      'build',
+      'smoke',
+    ]) {
+      const i = job('publish').steps.findIndex((s) => (s.run ?? '').trim() === `pnpm run ${script}`)
+      assert.ok(i >= 0, `publish does not run \`pnpm run ${script}\``)
+      assert.ok(i < publishStep, `\`pnpm run ${script}\` (step ${i}) must run before the publish`)
+    }
     for (const [what, re] of [
-      ['the full gate', /pnpm run test$/],
       ['the release-setup re-verification', /Re-verify the release setup/],
     ]) {
       const i = indexOf('publish', re)
@@ -187,23 +230,42 @@ describe('release workflow — changesets/action v2 contract', () => {
       1,
       'the two changesets/action steps are on different majors',
     )
-    const ws = readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
-    const cli = /^\s+'@changesets\/cli':\s*[\^~]?(\d+)\./m.exec(ws)
-    assert.ok(cli, 'could not read the @changesets/cli catalog range')
+    // The INSTALLED CLI is the authority: it is what `changeset publish` runs, wherever its range is declared.
+    const installed = JSON.parse(
+      readFileSync(join(ROOT, 'node_modules/@changesets/cli/package.json'), 'utf8'),
+    ).version
     assert.equal(
-      Number(cli[1]),
+      Number(installed.split('.')[0]),
       actionMajors[0] + 1,
-      `changesets/action v${actionMajors[0]} pairs with @changesets/cli ${actionMajors[0] + 1}.x, not ${cli[1]}.x`,
+      `changesets/action v${actionMajors[0]} pairs with @changesets/cli ${actionMajors[0] + 1}.x, not ${installed}`,
     )
+    // And a catalog range, when there is one, must agree — so the next install cannot drift.
+    const ws = readFileSync(join(ROOT, 'pnpm-workspace.yaml'), 'utf8')
+    const range = /^\s+'@changesets\/cli':\s*[\^~]?(\d+)\./m.exec(ws)
+    if (range) assert.equal(Number(range[1]), actionMajors[0] + 1, 'the catalog range disagrees')
   })
 
-  test('uses only v2 input names — v1 names make the action throw', () => {
+  test('uses only inputs the pinned action declares — v2 throws on v1 names', () => {
+    // The `inputs:` of changesets/action v2.1.2's action.yml. An allowlist, not a list of the renamed v1
+    // inputs: v2 throws on any input it does not know, `title` and `commitMode` included.
+    const V2 = new Set([
+      'github-token',
+      'publish-script',
+      'version-script',
+      'commit-message',
+      'pr-title',
+      'pr-draft',
+      'pr-base-branch',
+      'create-github-releases',
+      'push-git-tags',
+      'push-with-git-cli',
+      'cwd',
+    ])
     for (const s of changesetsSteps()) {
-      for (const old of ['publish', 'version', 'createGithubReleases']) {
-        assert.equal(
-          s.with?.[old],
-          undefined,
-          `changesets/action step uses the removed v1 input "${old}"`,
+      for (const input of Object.keys(s.with ?? {})) {
+        assert.ok(
+          V2.has(input),
+          `changesets/action step uses "${input}", which v2.1.2 does not declare`,
         )
       }
     }
