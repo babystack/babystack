@@ -1,6 +1,6 @@
 version: 2
 updates:
-  # npm deps — monthly + grouped (weekly is too noisy per the engineering handbook)
+  # npm deps — monthly + grouped (weekly is too noisy)
   - package-ecosystem: npm
     directory: /
     schedule:

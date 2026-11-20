@@ -1,7 +1,7 @@
 # Contributing to babystack
 
-Thanks for helping! babystack is an open-core, Apache-2.0 project. This repo follows a consistent
-engineering handbook shared across the maintainer's projects; the essential rules are inlined below.
+Thanks for helping! babystack is an open-core, Apache-2.0 project. The rules this repo follows are
+listed below.
 
 ## Table of contents
 
@@ -34,7 +34,7 @@ pnpm run test:integration
 
 ## Branching & commits
 
-- Branch off `main`: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`. Docs-only may go straight to `main`.
+- Branch off `main`: `feature/<slug>`, `fix/<slug>`, `chore/<slug>`. Every change goes through a PR, docs-only included.
 - **Conventional commits** (`feat:`/`fix:`/`chore:`/`docs:`/`refactor:`/`test:`), imperative mood.
 - **Squash-merge**; delete the branch (remote + local) after merge.
 - Never `--no-verify`; never add `Co-Authored-By` trailers.
